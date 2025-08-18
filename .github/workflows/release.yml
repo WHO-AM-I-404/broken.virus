@@ -19,6 +19,7 @@ jobs:
       with:
         update: true
         install: >-
+          base-devel
           mingw-w64-x86_64-toolchain
           nasm
 
@@ -28,9 +29,12 @@ jobs:
     - name: Build broken1.exe
       shell: msys2 {0}
       run: |
+        # Pastikan environment MSYS2 benar
+        export MSYSTEM=MINGW64
         export PATH="/mingw64/bin:$PATH"
         export CPLUS_INCLUDE_PATH="/mingw64/include"
         export LIBRARY_PATH="/mingw64/lib"
+
         g++ --version
 
         # Compile ASM jika ada
@@ -42,7 +46,6 @@ jobs:
         fi
 
         # Compile & link C++ + ASM
-        # Pastikan -lgdiplus di akhir
         g++ -O2 -Wall -Wextra -static -o broken1.exe \
             BROKEN1/broken1.cpp $OBJFILES \
             -lwinmm -luser32 -ldwmapi -lgdi32 -lpsapi -lpthread -lshell32 -lcomdlg32 -ladvapi32 \
