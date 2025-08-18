@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        arch: [x64]  # Hanya build 64-bit
+        arch: [x64]
 
     steps:
     - name: Setup MSYS2
@@ -57,5 +57,6 @@ jobs:
           WARNING: This software is for educational purposes only!
           Do not run on production systems or personal devices.
         files: broken1.exe
+        allowUpdates: true
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
