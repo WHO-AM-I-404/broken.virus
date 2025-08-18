@@ -29,8 +29,10 @@ jobs:
       shell: msys2 {0}
       run: |
         export PATH="/mingw64/bin:$PATH"
+        export CPLUS_INCLUDE_PATH="/mingw64/include"
+        export LIBRARY_PATH="/mingw64/lib"
         g++ --version
-        
+
         # Compile ASM jika ada
         if [ -f "BROKEN1/helper.asm" ]; then
           nasm -f win64 BROKEN1/helper.asm -o helper.obj
@@ -40,10 +42,11 @@ jobs:
         fi
 
         # Compile & link C++ + ASM
+        # Pastikan -lgdiplus di akhir
         g++ -O2 -Wall -Wextra -static -o broken1.exe \
             BROKEN1/broken1.cpp $OBJFILES \
             -lwinmm -luser32 -ldwmapi -lgdi32 -lpsapi -lpthread -lshell32 -lcomdlg32 -ladvapi32 \
-            -lsetupapi -lvirtdisk -lcrypt32 -lntdll \
+            -lsetupapi -lvirtdisk -lcrypt32 -lntdll -lgdiplus \
             -mwindows -Wno-cast-function-type -Wno-missing-field-initializers
 
     - name: Verify build
