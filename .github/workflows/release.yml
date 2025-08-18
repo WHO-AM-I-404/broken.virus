@@ -1,0 +1,61 @@
+
+name: Build and Release Broken Effect
+
+on:
+  push:
+    tags:
+      - 'v*.*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64]  # Hanya build 64-bit
+
+    steps:
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        install: mingw-w64-x86_64-toolchain
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Compile resources
+      shell: msys2 {0}
+      run: |
+        windres BROKEN/broken.rc -O coff -o BROKEN/broken.res
+
+    - name: Build broken.exe
+      shell: msys2 {0}
+      run: |
+        export PATH="/mingw64/bin:$PATH"
+        g++ --version
+        g++ -O2 -Wall -Wextra -static -o broken.exe \
+            BROKEN/broken.cpp BROKEN/broken.res \
+            -lwinmm -luser32 -ldwmapi -lgdi32 -lpsapi -lpthread -lshell32 -lcomdlg32 -ladvapi32 \
+            -mwindows -Wno-cast-function-type -Wno-missing-field-initializers
+
+    - name: Verify build
+      run: |
+        if (-not (Test-Path "broken.exe")) {
+          echo "::error::Build failed!"
+          exit 1
+        }
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Broken Effect ${{ github.ref_name }}
+        body: |
+          BROKEN EXECUTABLE SIMULATION v1.0
+          - Custom effects
+          - Built automatically from GitHub Actions
+          - Author: WHO-AM-I-404
+        files: broken.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
