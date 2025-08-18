@@ -27,18 +27,6 @@
 #include <wincrypt.h>
 #include <gdiplus.h>
 
-#pragma comment(lib, "crypt32.lib")
-#pragma comment(lib, "virtdisk.lib")
-#pragma comment(lib, "setupapi.lib")
-#pragma comment(lib, "gdiplus.lib")
-#pragma comment(lib, "winmm.lib")
-#pragma comment(lib, "user32.lib")
-#pragma comment(lib, "dwmapi.lib")
-#pragma comment(lib, "gdi32.lib")
-#pragma comment(lib, "ntdll.lib")
-#pragma comment(lib, "shell32.lib")
-#pragma comment(lib, "advapi32.lib")
-
 using namespace Gdiplus;
 
 // Konfigurasi intensitas
@@ -1264,6 +1252,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         L"CRITICAL SECURITY ALERT", 
         MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES)
     {
+        GdiplusShutdown(gdiplusToken);
         return 0;
     }
     
@@ -1278,6 +1267,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         L"FINAL CONFIRMATION", 
         MB_OKCANCEL | MB_ICONERROR | MB_DEFBUTTON2) != IDOK)
     {
+        GdiplusShutdown(gdiplusToken);
         return 0;
     }
 
@@ -1289,6 +1279,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         }
         
         if (__argc > 1 && lstrcmpiA(__argv[1], "-background") == 0) {
+            GdiplusShutdown(gdiplusToken);
             return 0;
         }
         
@@ -1300,6 +1291,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         sei.lpParameters = L"-background";
         sei.nShow = SW_HIDE;
         ShellExecuteExW(&sei);
+        GdiplusShutdown(gdiplusToken);
         return 0;
     }
 
@@ -1308,6 +1300,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     
     if (__argc > 1 && lstrcmpiA(__argv[1], "-background") == 0) {
         RunBackgroundProcess();
+        GdiplusShutdown(gdiplusToken);
         return 0;
     }
     
