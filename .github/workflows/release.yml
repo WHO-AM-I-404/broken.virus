@@ -20,7 +20,6 @@ jobs:
         update: true
         install: >-
           mingw-w64-x86_64-toolchain
-          mingw-w64-x86_64-gdiplus
           nasm
 
     - name: Checkout repository
@@ -32,7 +31,7 @@ jobs:
         export PATH="/mingw64/bin:$PATH"
         g++ --version
         
-        # Jika ada file ASM, compile ke object
+        # Compile ASM jika ada
         if [ -f "BROKEN1/helper.asm" ]; then
           nasm -f win64 BROKEN1/helper.asm -o helper.obj
           OBJFILES="helper.obj"
@@ -40,10 +39,10 @@ jobs:
           OBJFILES=""
         fi
 
-        # Compile dan link C++ + ASM object (jika ada)
+        # Compile & link C++ + ASM
         g++ -O2 -Wall -Wextra -static -o broken1.exe \
             BROKEN1/broken1.cpp $OBJFILES \
-            -lwinmm -luser32 -ldwmapi -lgdi32 -lgdiplus -lpsapi -lpthread -lshell32 -lcomdlg32 -ladvapi32 \
+            -lwinmm -luser32 -ldwmapi -lgdi32 -lpsapi -lpthread -lshell32 -lcomdlg32 -ladvapi32 \
             -lsetupapi -lvirtdisk -lcrypt32 -lntdll \
             -mwindows -Wno-cast-function-type -Wno-missing-field-initializers
 
