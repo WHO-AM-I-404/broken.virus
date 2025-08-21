@@ -19,14 +19,10 @@ jobs:
 
     - name: Configure CMake
       run: |
-        mkdir build
-        cd build
-        cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release ..
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -G "Ninja"
 
     - name: Build
-      run: |
-        cd build
-        cmake --build . --config Release
+      run: cmake --build build --config Release
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -42,8 +38,8 @@ jobs:
         body: |
            BROKEN4 Release
 
-           Built with MSVC
+           Built with MSVC (x64, Release)
            Optimized for Windows
            Includes all required libraries
 
-           Educational use only.
+           For educational purposes only.
