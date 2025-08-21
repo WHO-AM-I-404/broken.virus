@@ -10,13 +10,18 @@ env:
   ARTIFACT_NAME: broken
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        platform: [x64]
-        configuration: [Release]
-
+        os: [windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            platform: win-x64
+            ext: .exe
+          - os: ubuntu-latest
+            platform: linux-x64
+            ext: ""
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -25,62 +30,52 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        cmake .. -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
-    - name: Build Solution
+    - name: Build Project
       run: |
         cd build
-        cmake --build . --config ${{ env.BUILD_TYPE }} -- /m
+        cmake --build . --config ${{ env.BUILD_TYPE }}
 
     - name: Create Release Directory
       run: |
         mkdir release
-        copy build\\${{ env.BUILD_TYPE }}\\broken.exe release\\
-        copy *.dll release\\ 2>nul || echo "No DLLs to copy"
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then copy build\\${{ env.BUILD_TYPE }}\\broken.exe release\\broken.exe; else cp build/broken release/broken; fi
 
-    - name: Install Inno Setup (opsional)
-      run: |
-        choco install innosetup -y
-
-    - name: Create Installer (opsional)
-      run: |
-        iscc /O"release" /F"broken_Setup" installer_script.iss || echo "No installer script"
-
-    - name: Zip Release Files
+    - name: Package Artifact
       run: |
         cd release
-        7z a ../${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}.zip *.*
+        7z a ../${{ env.ARTIFACT_NAME }}_${{ matrix.platform }}_${{ github.ref_name }}.zip *.*
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}
-        path: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}.zip
+        name: ${{ env.ARTIFACT_NAME }}_${{ matrix.platform }}_${{ github.ref_name }}
+        path: ${{ env.ARTIFACT_NAME }}_${{ matrix.platform }}_${{ github.ref_name }}.zip
 
-  create-release:
-    needs: build-windows
+  release:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
-    - name: Download Artifact
+    - name: Download All Artifacts
       uses: actions/download-artifact@v4
       with:
-        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}
         path: artifacts
 
-    - name: Create Release
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.ref }}
         release_name: Release ${{ github.ref_name }}
         body: |
-          Automated build of Broken
-          Version: ${{ github.ref_name }}
-          Build date: ${{ github.event.head_commit.timestamp }}
+           Automated multi-platform build of **broken**
+          - Windows x64 (`broken.exe`)
+          - Linux x64 (`broken`)
 
            WARNING: This software is highly destructive and should only be used in controlled environments.
-        files: artifacts/*
+        files: artifacts/**/* 
         draft: false
         prerelease: false
