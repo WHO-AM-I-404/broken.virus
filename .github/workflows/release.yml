@@ -14,11 +14,6 @@ env:
 jobs:
   build-windows:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        platform: [x64]
-        configuration: [Release]
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -48,16 +43,17 @@ jobs:
     - name: Zip Release Files
       run: |
         cd release
-        7z a ../${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}.zip *.*
+        7z a ../${{ env.ARTIFACT_NAME }}_Windows_${{ github.ref_name }}.zip *.*
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}
-        path: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}.zip
+        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ github.ref_name }}
+        path: ${{ env.ARTIFACT_NAME }}_Windows_${{ github.ref_name }}.zip
 
   create-release:
     needs: build-windows
+    if: startsWith(github.ref, 'refs/tags/v')   # hanya jalan kalau push tag versi
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -66,19 +62,19 @@ jobs:
     - name: Download Artifact
       uses: actions/download-artifact@v4
       with:
-        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}
+        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ github.ref_name }}
         path: artifacts
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
+        tag_name: ${{ github.ref_name }}
         release_name: Release ${{ github.ref_name }}
         body: |
           Automated build of broken.exe
           Version: ${{ github.ref_name }}
           Build date: ${{ github.event.head_commit.timestamp }}
-          
+
            WARNING: This software is highly destructive and should only be used in controlled environments.
         files: artifacts/*
         draft: false
