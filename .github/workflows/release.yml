@@ -1,31 +1,44 @@
-name: Build BROKEN4
+name: Auto Release BROKEN4
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+    branches:
+      - main   # jalan setiap ada push ke main
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up MSVC
-      uses: ilammy/msvc-dev-cmd@v1
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -G "Ninja"
+      - name: Configure & Build
+        run: |
+          mkdir build
+          cd build
+          cmake .. -A x64
+          cmake --build . --config Release
 
-    - name: Build
-      run: cmake --build build --config Release
+      - name: Bump version & Create tag
+        id: version
+        run: |
+          VERSION=v1.$(date +'%Y%m%d.%H%M%S')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          git tag $VERSION
+          git push origin $VERSION
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: build/Release/BROKEN4.exe
-        generate_release_notes: true
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          files: build/Release/BROKEN4.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BROKEN4
+          path: build/Release/BROKEN4.exe
