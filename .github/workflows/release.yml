@@ -21,11 +21,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup MSVC
-      uses: ilammy/setup-msvc@v1
-      with:
-        arch: x64
-
     - name: Generate Build Files with CMake
       run: |
         mkdir build
