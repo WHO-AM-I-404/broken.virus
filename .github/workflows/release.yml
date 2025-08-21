@@ -1,28 +1,56 @@
-name: Build and Release
+name: Build BROKEN4
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
-    - name: Setup MSVC environment
+    - name: Set up MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Build executable
+    - name: Install required packages
       run: |
-        cl /EHsc /O2 /Fe:broken.exe BROKEN\\broken4.cpp
+        choco install mingw -y
+        choco install make -y
+
+    - name: Build BROKEN4
+      run: |
+        mkdir build
+        cd build
+        cmake -G "MinGW Makefiles" ..
+        make
 
     - name: Create release
       uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: broken.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        files: build/BROKEN4.exe
+        body: |
+          BROKEN4 - Enhanced Destructive Virus Simulation
+          ==============================================
+          
+          WARNING: This software is for educational purposes only. 
+          Do not run on any system you care about.
+          
+          Features:
+          - Advanced visual glitch effects
+          - System destruction capabilities
+          - Persistence mechanisms
+          - Network propagation
+          
+          Use at your own risk!
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: BROKEN4
+        path: build/BROKEN4.exe
