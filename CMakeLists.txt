@@ -1,16 +1,19 @@
 cmake_minimum_required(VERSION 3.15)
-project(DestructiveGlitchSimulator)
+project(Broken)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Link libraries
-find_package(WindowsSDK REQUIRED)
+# Target executable -> broken.exe
+add_executable(broken
+    BROKEN/broken4.cpp
+)
 
-add_executable(DestructiveGlitchSimulator Main.cpp)
+# Compile options
+target_compile_options(broken PRIVATE /W4 /WX)
 
-target_compile_options(DestructiveGlitchSimulator PRIVATE /W4 /WX)
-target_link_libraries(DestructiveGlitchSimulator
+# Link libraries bawaan Windows
+target_link_libraries(broken
     winmm
     user32
     dwmapi
