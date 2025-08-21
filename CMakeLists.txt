@@ -17,10 +17,7 @@ if(MINGW)
     add_compile_options("-mwindows")
 endif()
 
-# Hapus find_package(Gdiplus REQUIRED) karena tidak tersedia di Windows SDK
-# find_package(Gdiplus REQUIRED)
-
-# Sesuaikan path file sumber, misalnya ada di BROKEN/broken4.cpp
+# Jangan pakai find_package(Gdiplus), cukup link langsung
 add_executable(BROKEN4 BROKEN/broken4.cpp)
 
 target_link_libraries(BROKEN4
