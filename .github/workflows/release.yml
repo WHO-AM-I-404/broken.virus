@@ -18,7 +18,7 @@ jobs:
 
     - name: Build executable
       run: |
-        cl /EHsc /O2 /Fe:broken.exe BROKEN\\brone.4.cpp
+        cl /EHsc /O2 /Fe:broken.exe BROKEN\\broken.4.cpp
 
     - name: Create release
       uses: softprops/action-gh-release@v1
