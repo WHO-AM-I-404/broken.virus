@@ -3,11 +3,11 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*' # Workflow jalan saat push tag versi, contoh: v1.0.0
+      - 'v*'
 
 env:
   BUILD_TYPE: Release
-  ARTIFACT_NAME: DestructiveGlitchSimulator
+  ARTIFACT_NAME: broken
 
 jobs:
   build-windows:
@@ -40,7 +40,7 @@ jobs:
     - name: Create Release Directory
       run: |
         mkdir release
-        copy build\\${{ env.BUILD_TYPE }}\\*.exe release\\
+        copy build\\${{ env.BUILD_TYPE }}\\broken.exe release\\
         copy *.dll release\\ 2>nul || echo "No DLLs to copy"
 
     - name: Install Inno Setup (opsional)
@@ -49,7 +49,7 @@ jobs:
 
     - name: Create Installer (opsional)
       run: |
-        iscc /O"release" /F"${{ env.ARTIFACT_NAME }}_Setup" installer_script.iss || echo "No installer script"
+        iscc /O"release" /F"broken_Setup" installer_script.iss || echo "No installer script"
 
     - name: Zip Release Files
       run: |
@@ -66,3 +66,26 @@ jobs:
     needs: build-windows
     runs-on: ubuntu-latest
     permissions:
+      contents: write
+    
+    steps:
+    - name: Download Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}
+        path: artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref_name }}
+        body: |
+          Automated build of Broken
+          Version: ${{ github.ref_name }}
+          Build date: ${{ github.event.head_commit.timestamp }}
+
+           WARNING: This software is highly destructive and should only be used in controlled environments.
+        files: artifacts/*
+        draft: false
+        prerelease: false
