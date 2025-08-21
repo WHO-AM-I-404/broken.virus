@@ -1,17 +1,17 @@
 [Setup]
-AppName=Destructive Glitch Simulator
-AppVersion={#GetFileVersion("release\DestructiveGlitchSimulator.exe")}
-DefaultDirName={pf}\Destructive Glitch Simulator
-DefaultGroupName=Destructive Glitch Simulator
+AppName=Broken
+AppVersion={#GetFileVersion("release\broken.exe")}
+DefaultDirName={pf}\Broken
+DefaultGroupName=Broken
 OutputDir=.
-OutputBaseFilename=DestructiveGlitchSimulator_Setup
+OutputBaseFilename=broken_Setup
 Compression=lzma
 SolidCompression=yes
 
 [Files]
-Source: "release\DestructiveGlitchSimulator.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "release\broken.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Tambahkan file lain jika diperlukan
 
 [Icons]
-Name: "{group}\Destructive Glitch Simulator"; Filename: "{app}\DestructiveGlitchSimulator.exe"
-Name: "{group}\Uninstall Destructive Glitch Simulator"; Filename: "{uninstallexe}"
+Name: "{group}\Broken"; Filename: "{app}\broken.exe"
+Name: "{group}\Uninstall Broken"; Filename: "{uninstallexe}"
