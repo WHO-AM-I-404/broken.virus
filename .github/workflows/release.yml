@@ -1,80 +1,68 @@
-name: Build and Release Broken
+name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*.*'
-  workflow_dispatch:
+      - 'v*' # Workflow jalan saat push tag versi, contoh: v1.0.0
+
+env:
+  BUILD_TYPE: Release
+  ARTIFACT_NAME: DestructiveGlitchSimulator
 
 jobs:
   build-windows:
     runs-on: windows-latest
     strategy:
       matrix:
-        arch: [x64]
+        platform: [x64]
+        configuration: [Release]
 
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup MSYS2
-      uses: msys2/setup-msys2@v2
+    - name: Setup MSVC
+      uses: ilammy/setup-msvc@v1
       with:
-        update: false  # kita update manual supaya full upgrade
-        install: >-
-          base-devel
-          mingw-w64-x86_64-toolchain
-          mingw-w64-x86_64-headers
-          nasm
+        arch: x64
 
-    - name: Update MSYS2 completely
-      shell: msys2 {0}
+    - name: Generate Build Files with CMake
       run: |
-        pacman -Syuu --noconfirm
-        pacman -Su --noconfirm
+        mkdir build
+        cd build
+        cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
-    - name: Build broken1.exe
-      shell: msys2 {0}
+    - name: Build Solution
       run: |
-        export MSYSTEM=MINGW64
-        export PATH="/mingw64/bin:$PATH"
-        export CPLUS_INCLUDE_PATH="/mingw64/include"
-        export LIBRARY_PATH="/mingw64/lib"
+        cd build
+        cmake --build . --config ${{ env.BUILD_TYPE }} -- /m
 
-        g++ --version
-
-        # Compile ASM jika ada
-        if [ -f "BROKEN1/helper.asm" ]; then
-          nasm -f win64 BROKEN1/helper.asm -o helper.obj
-          OBJFILES="helper.obj"
-        else
-          OBJFILES=""
-        fi
-
-        # Compile & link C++ + ASM
-        g++ -O2 -Wall -Wextra -static -o broken1.exe \
-            BROKEN1/broken1.cpp $OBJFILES \
-            -lwinmm -luser32 -ldwmapi -lgdi32 -lpsapi -lpthread -lshell32 -lcomdlg32 -ladvapi32 \
-            -lsetupapi -lvirtdisk -lcrypt32 -lntdll -lgdiplus \
-            -mwindows -Wno-cast-function-type -Wno-missing-field-initializers
-
-    - name: Verify build
+    - name: Create Release Directory
       run: |
-        if (-not (Test-Path "broken1.exe")) {
-          echo "::error::Build failed!"
-          exit 1
-        }
+        mkdir release
+        copy build\\${{ env.BUILD_TYPE }}\\*.exe release\\
+        copy *.dll release\\ 2>nul || echo "No DLLs to copy"
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
+    - name: Install Inno Setup (opsional)
+      run: |
+        choco install innosetup -y
+
+    - name: Create Installer (opsional)
+      run: |
+        iscc /O"release" /F"${{ env.ARTIFACT_NAME }}_Setup" installer_script.iss || echo "No installer script"
+
+    - name: Zip Release Files
+      run: |
+        cd release
+        7z a ../${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}.zip *.*
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
       with:
-        tag_name: ${{ github.ref_name }}
-        name: Broken ${{ github.ref_name }}
-        body: |
-          Build hasil otomatis dari workflow GitHub Actions.
-          - File utama: BROKEN1/broken1.cpp
-          - Mendukung inline asm atau file .asm eksternal
-        files: broken1.exe
-        allowUpdates: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}
+        path: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}.zip
+
+  create-release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    permissions:
