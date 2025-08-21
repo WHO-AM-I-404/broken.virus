@@ -1,46 +1,46 @@
 cmake_minimum_required(VERSION 3.15)
-project(Broken)
+project(BROKEN4)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Target executable
-add_executable(broken
-    BROKEN/broken4.cpp
-)
-
-# Compile warnings
-if (MSVC)
-    target_compile_options(broken PRIVATE /W4 /WX)
+if(MSVC)
+    add_compile_options("/std:c++latest")
 else()
-    target_compile_options(broken PRIVATE -Wall -Wextra -Werror)
+    add_compile_options("-std=c++17")
 endif()
 
-# Link libraries khusus Windows
-if (WIN32)
-    target_link_libraries(broken
-        winmm
-        user32
-        dwmapi
-        gdi32
-        ntdll
-        shell32
-        advapi32
-        iphlpapi
-        winhttp
-        wtsapi32
-        userenv
-        netapi32
-        rasapi32
-        sensapi
-        wininet
-        urlmon
-        wintrust
-        winscard
-        ntsecapi
-        secur32
-        crypt32
-        virtdisk
-        setupapi
-    )
+if(MINGW)
+    add_compile_options("-static")
+    add_compile_options("-static-libgcc")
+    add_compile_options("-static-libstdc++")
+    add_compile_options("-mwindows")
+endif()
+
+find_package(Gdiplus REQUIRED)
+
+add_executable(BROKEN4 broken4.cpp)
+
+target_link_libraries(BROKEN4
+    winmm
+    user32
+    dwmapi
+    gdi32
+    ntdll
+    shell32
+    advapi32
+    iphlpapi
+    ws2_32
+    winhttp
+    wininet
+    cryptui
+    gdiplus
+    urlmon
+    setupapi
+    virtdisk
+    crypt32
+)
+
+if(MINGW)
+    target_link_options(BROKEN4 PRIVATE -static)
 endif()
