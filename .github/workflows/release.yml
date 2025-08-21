@@ -12,37 +12,39 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
 
     - name: Set up MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Install required packages
-      run: |
-        choco install mingw -y
-        choco install make -y
-
-    - name: Build BROKEN4
+    - name: Configure CMake
       run: |
         mkdir build
         cd build
-        cmake -G "MinGW Makefiles" ..
-        make
+        cmake -G "Ninja" ..
 
-    - name: Create release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: build/BROKEN4.exe
-        body: |
-          BROKEN4 - Example C++ Project Build
-          ==================================
-          
-          This release was built automatically using GitHub Actions.
-          The binary is intended for educational and demonstration purposes only.
+    - name: Build with Ninja
+      run: |
+        cd build
+        cmake --build . --config Release
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: BROKEN4
-        path: build/BROKEN4.exe
+        path: build/Release/BROKEN4.exe
+
+    - name: Create release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: build/Release/BROKEN4.exe
+        body: |
+          BROKEN4 Build
+
+          Features:
+          - Advanced visual glitch effects
+          - Persistence mechanisms
+          - Network propagation
+          
+           For educational purposes only!
