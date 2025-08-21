@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
 
     steps:
@@ -21,9 +21,9 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake -G "Ninja" ..
+        cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release ..
 
-    - name: Build with Ninja
+    - name: Build
       run: |
         cd build
         cmake --build . --config Release
@@ -34,17 +34,16 @@ jobs:
         name: BROKEN4
         path: build/Release/BROKEN4.exe
 
-    - name: Create release
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: build/Release/BROKEN4.exe
         body: |
-           BROKEN4 Build
+           BROKEN4 Release
 
-          Features:
-          - Advanced visual glitch effects
-          - Persistence mechanisms
-          - Network propagation
-          
-           For educational and testing purposes only!
+           Built with MSVC
+           Optimized for Windows
+           Includes all required libraries
+
+           Educational use only.
