@@ -1,21 +1,21 @@
-name: Auto Release BROKEN4
+name: Release BROKEN4 v1.2
 
 on:
   push:
     branches:
-      - main   # jalan setiap ada push ke main
+      - main   # jalan kalau ada push ke main
 
 jobs:
   build:
     runs-on: windows-latest
     permissions:
-      contents: write   # perlu untuk push tag & release
+      contents: write   # biar bisa push tag & bikin release
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # biar bisa ambil tag
+          fetch-depth: 0
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -27,23 +27,22 @@ jobs:
           cmake .. -A x64
           cmake --build . --config Release
 
-      - name: Get next version
-        id: version
-        shell: bash
+      - name: Push tag v1.2
         run: |
-          # ambil tag terakhir atau fallback v1.0.0
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-          echo "Last tag: $LAST_TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v1.2 -f
+          git push origin v1.2 --force
 
-          # parse major.minor.patch
-          VERSION=${LAST_TAG#v}
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+      - name: Create Release v1.2
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2
+          name: Release v1.2
+          files: build/Release/BROKEN4.exe
 
-          # naikkan patch
-          PATCH=$((PATCH+1))
-          NEW_TAG="v$MAJOR.$MINOR.$PATCH"
-
-          echo "New tag: $NEW_TAG"
-          echo "version=$NEW_TAG" >> $GITHUB_OUTPUT
-
-      - name: Push new t
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BROKEN4
+          path: build/Release/BROKEN4.exe
