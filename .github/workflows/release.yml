@@ -2,80 +2,84 @@ name: Build and Release
 
 on:
   push:
+    branches:
+      - '**'   # Semua branch
     tags:
-      - 'v*'
+      - 'v*'   # Semua tag versi (v1, v2.0, v3.5.1, dll)
 
 env:
   BUILD_TYPE: Release
   ARTIFACT_NAME: broken
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
+  build-windows:
+    runs-on: windows-latest
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
-        include:
-          - os: windows-latest
-            platform: win-x64
-            ext: .exe
-          - os: ubuntu-latest
-            platform: linux-x64
-            ext: ""
+        platform: [x64]
+        configuration: [Release]
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-    - name: Generate Build Files with CMake
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Generate build files
       run: |
         mkdir build
         cd build
-        cmake .. -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
-    - name: Build Project
+    - name: Build project
       run: |
         cd build
-        cmake --build . --config ${{ env.BUILD_TYPE }}
+        cmake --build . --config ${{ env.BUILD_TYPE }} --target broken -- /m
 
     - name: Create Release Directory
       run: |
         mkdir release
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then copy build\\${{ env.BUILD_TYPE }}\\broken.exe release\\broken.exe; else cp build/broken release/broken; fi
+        copy build\${{ env.BUILD_TYPE }}\broken.exe release\
+        copy *.dll release\ 2>nul || echo "No DLLs to copy"
 
-    - name: Package Artifact
+    - name: Zip Release Files
       run: |
         cd release
-        7z a ../${{ env.ARTIFACT_NAME }}_${{ matrix.platform }}_${{ github.ref_name }}.zip *.*
+        7z a ../${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}.zip *.*
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.ARTIFACT_NAME }}_${{ matrix.platform }}_${{ github.ref_name }}
-        path: ${{ env.ARTIFACT_NAME }}_${{ matrix.platform }}_${{ github.ref_name }}.zip
+        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}
+        path: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}.zip
 
-  release:
-    needs: build
+  create-release:
+    needs: build-windows
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
+    
     steps:
-    - name: Download All Artifacts
+    - name: Download Artifact
       uses: actions/download-artifact@v4
       with:
+        name: ${{ env.ARTIFACT_NAME }}_Windows_${{ matrix.platform }}_${{ github.ref_name }}
         path: artifacts
 
-    - name: Create GitHub Release
+    - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.ref }}
         release_name: Release ${{ github.ref_name }}
         body: |
-           Automated multi-platform build of **broken**
-          - Windows x64 (`broken.exe`)
-          - Linux x64 (`broken`)
-
+          Automated build of broken.exe
+          Version: ${{ github.ref_name }}
+          Build date: ${{ github.event.head_commit.timestamp }}
+          
            WARNING: This software is highly destructive and should only be used in controlled environments.
-        files: artifacts/**/* 
+        files: artifacts/*
         draft: false
         prerelease: false
