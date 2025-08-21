@@ -35,16 +35,16 @@ jobs:
         path: build/Release/BROKEN4.exe
 
     - name: Create release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: build/Release/BROKEN4.exe
         body: |
-          BROKEN4 Build
+           BROKEN4 Build
 
           Features:
           - Advanced visual glitch effects
           - Persistence mechanisms
           - Network propagation
           
-           For educational purposes only!
+           For educational and testing purposes only!
