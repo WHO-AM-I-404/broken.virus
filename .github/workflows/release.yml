@@ -8,10 +8,14 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write   # perlu untuk push tag & release
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # biar bisa ambil tag
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -23,22 +27,23 @@ jobs:
           cmake .. -A x64
           cmake --build . --config Release
 
-      - name: Bump version & Create tag
+      - name: Get next version
         id: version
+        shell: bash
         run: |
-          VERSION=v1.$(date +'%Y%m%d.%H%M%S')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          git tag $VERSION
-          git push origin $VERSION
+          # ambil tag terakhir atau fallback v1.0.0
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          echo "Last tag: $LAST_TAG"
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          files: build/Release/BROKEN4.exe
+          # parse major.minor.patch
+          VERSION=${LAST_TAG#v}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: BROKEN4
-          path: build/Release/BROKEN4.exe
+          # naikkan patch
+          PATCH=$((PATCH+1))
+          NEW_TAG="v$MAJOR.$MINOR.$PATCH"
+
+          echo "New tag: $NEW_TAG"
+          echo "version=$NEW_TAG" >> $GITHUB_OUTPUT
+
+      - name: Push new t
