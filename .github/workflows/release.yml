@@ -1,52 +1,54 @@
-name: Release BROKEN4 v1.2
+name: Build and Release Broken4
 
 on:
   push:
-    branches:
-      - main   # setiap commit ke main langsung update release
+    tags:
+      - 'v*'
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
-    permissions:
-      contents: write   # penting biar bisa push tag & bikin release
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set up MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
 
-      - name: Configure & Build
-        run: |
-          mkdir build
-          cd build
-          cmake .. -A x64
-          cmake --build . --config Release
+    - name: Install required packages
+      run: |
+        choco install mingw -y
+        choco install make -y
 
-      - name: Force push tag v1.2
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f v1.2
-          git push origin v1.2 --force
+    - name: Build Broken4
+      run: |
+        mkdir build
+        cd build
+        cmake -G "MinGW Makefiles" ..
+        mingw32-make
 
-      - name: Create / Update Release v1.2
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.2
-          name: BROKEN4 v1.2
-          files: build/Release/BROKEN4.exe
-          body: |
-             BROKEN4 v1.2
-            - Build otomatis dari branch main
-            - Release ini akan selalu overwrite v1.2 lama
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: build/broken4.exe
+        tag_name: ${{ github.ref }}
+        name: Release ${{ github.ref_name }}
+        body: |
+          Automated build of Broken4 application
+           WARNING: This is a destructive program! Use with extreme caution!
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: BROKEN4
-          path: build/Release/BR
+  security-scan:
+    runs-on: windows-latest
+    needs: build-windows
+    if: always()
+
+    steps:
+    - name: Run basic security scan
+      run: |
+        echo "Security scan placeholder - actual scanning would be implemented here"
+        echo "This would include checks for malicious code patterns"
