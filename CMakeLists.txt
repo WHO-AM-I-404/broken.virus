@@ -1,30 +1,12 @@
 cmake_minimum_required(VERSION 3.15)
-project(BROKEN4)
+project(broken4)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_executable(broken4 BROKEN/broken4.cpp)
 
-if(MSVC)
-    add_compile_options("/std:c++latest")
-else()
-    add_compile_options("-std=c++17")
-endif()
-
-if(MINGW)
-    add_compile_options("-static")
-    add_compile_options("-static-libgcc")
-    add_compile_options("-static-libstdc++")
-    add_compile_options("-mwindows")
-endif()
-
-# Jangan pakai find_package(Gdiplus), cukup link langsung
-add_executable(BROKEN4 BROKEN/broken4.cpp)
-
-target_link_libraries(BROKEN4
-    winmm
-    user32
-    dwmapi
+target_link_libraries(broken4
     gdi32
+    winmm
+    dwmapi
     ntdll
     shell32
     advapi32
@@ -32,14 +14,15 @@ target_link_libraries(BROKEN4
     ws2_32
     winhttp
     wininet
+    crypt32
     cryptui
-    gdiplus
     urlmon
+    gdiplus
     setupapi
     virtdisk
-    crypt32
 )
 
-if(MINGW)
-    target_link_options(BROKEN4 PRIVATE -static)
-endif()
+set_target_properties(broken4 PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    LINK_FLAGS "-mwindows"
+)
